@@ -1,6 +1,6 @@
 /*
 -------------------------------------------------------------------
-Snezziboy v0.25
+Snezziboy v0.26
 
 Copyright (C) 2006 bubble2k
 
@@ -145,7 +145,11 @@ SetDebugState_UpdateState:
     
     mov     r0, SnesCYCLES, asr #CYCLE_SHIFT
     ldr     r1, =regROMAccess
-    ldrb    r1, [r2]
+    
+    @ version 0.26 fix
+    ldrb    r1, [r1]
+    @ version 0.26 fix end
+    
     tsts    r1, #1
     addeq   r0, r0, #CYCLES_PER_SCANLINE
     addne   r0, r0, #CYCLES_PER_SCANLINE_FAST

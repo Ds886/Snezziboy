@@ -1,3 +1,22 @@
+v0.26
+-----
+
+Fixes and Features:
+- Fixed a small bug in the debug version, as the horizontal cycles was not 
+  showing up correctly.
+- Fixed transparency so that it is disabled if the register $2130 disables all 
+  color math.
+  (Fixes the screw up in Aladdin)
+- Fix code skip for WAI/STP/WDM instructions so that if the player does not 
+  enable HDMA through the Snezziboy configuration, then the code skip selects 
+  the fastest skipping mode.
+- Fixed a critical bug in the mechanism that supports the intra-frame 
+  update of background scroll position. The bug, which crashes the emulator at
+  worst, or screws up some layers at best, only occurs after about 65535 SNES 
+  frames have been completely rendered, or roughly 18 minutes into gameplay, 
+  assuming the game runs at full 60 fps without slowdown.
+
+
 v0.25
 -----
 

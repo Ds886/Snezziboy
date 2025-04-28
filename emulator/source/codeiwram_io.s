@@ -1,6 +1,6 @@
 /*
 -------------------------------------------------------------------
-Snezziboy v0.25
+Snezziboy v0.26
 
 Copyright (C) 2006 bubble2k
 
@@ -425,6 +425,13 @@ snesRenderScreenAtVBlank_DontUpdateWrap:
     ldrb    r1, regColorMath            @ if full brightness, restore any color math
     ands    r3, r1, #0x3f
     beq     vBlankColorMathNoBlend
+    
+    @ version 0.26 fix
+    ldrb    r5, regColorSelect
+    eor     r5, r5, #0x30
+    ands    r5, r5, #0x30
+    beq     vBlankColorMathNoBlend
+    @ version 0.26 fix end
 
     ldrb    r5, regSubScreen
     and     r5, r5, #0x1f
@@ -563,14 +570,19 @@ snesRenderScreen_RenderMode7Reg:
     bne     1f
     
     stmfd   sp!, {r3}
-    ldr     r3, =0x0000ffff
+    ldr     r3, =0xffff
     moveq   r0, #1
     str     r0, bgOffsetCurrFrame
     mov     r1, #160
+    
+    @ version 0.26 fix
+    ldr     r0, =bgOffset       @ critical bug, this was left out 
+    @ version 0.26 fix end
+    
 snesRenderScreen_ClearFrameNumbers:
     ldrh    r2, [r0], #2
     cmp     r2, r3
-    moveq   r2, #0x0000
+    movne   r2, #0x0000
     strh    r2, [r0, #-2]
     subs    r1, r1, #1
     bne     snesRenderScreen_ClearFrameNumbers
@@ -2422,7 +2434,11 @@ W420C:
     ldr     r0, =ScanlineEnd_HDMA
     str     r2, [r0]
     
-    bx lr
+    @ version 0.26 fix
+    @ why is this here in the first place???!!! :(
+    @ bx lr
+    @ version 0.26 fix end
+    
     @ if not in vblank, initialize the frame
     @
     ldr     r2, =vBlankScan

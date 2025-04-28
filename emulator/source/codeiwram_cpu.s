@@ -1,6 +1,6 @@
 /*
 -------------------------------------------------------------------
-Snezziboy v0.25
+Snezziboy v0.26
 
 Copyright (C) 2006 bubble2k
 
@@ -300,8 +300,9 @@ DXI_26    :  Translate DPIndexedXIndirect,2,6
 DS_24     :  Translate StackRelative,2,4
 DSIY_27   :  Translate StackRelativeIndirectIndexedY,2,7
 
-
 S_28      :  Translate None,2,8
+
+
 
 
     .ltorg
@@ -873,7 +874,7 @@ ScanlineEnd:
     @ (or 262 times per frame)
     @====================================
 ScanlineEnd_HDMA:
-    bl      HDMA_Start                  @ self-modifying, either b ScanlineEnd_PerformHDMA or nop
+    bl      HDMA_Start                  @ self-modifying, either bl HDMA_Start or nop
 
 ScanlineEnd_Copy:    
     bl      ScanlineEnd_CopyBGOFS       @ self-modifying code here, 

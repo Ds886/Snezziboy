@@ -2,7 +2,7 @@
 -------------------------------------------------------------------
 Snezziboy Builder 
 */
-#define VERSION_NO  "0.25"
+#define VERSION_NO  "0.26"
 /*
 Copyright (C) 2006 bubble2k
 

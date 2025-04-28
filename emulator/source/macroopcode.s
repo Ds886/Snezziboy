@@ -1,6 +1,6 @@
 /*
 -------------------------------------------------------------------
-Snezziboy v0.25
+Snezziboy v0.26
 
 Copyright (C) 2006 bubble2k
 
@@ -2170,10 +2170,15 @@ SBCD_m1:
 .macro SkipScanline
     @ force interrupt to occur
     @
+    ldr     r0, =configHDMAEnable
+    ldrb    r0, [r0]
+    cmp     r0, #0
+    beq     1f
     ldr     r0, =regHDMAEnable
     ldrb    r0, [r0]
     cmp     r0, #0
     movne   r0, #0x10
+1:
     ldreqb  r0, regNMI
     mov     r0, r0, lsr #4
     ldr     r1, =ScanlineSkipTable
