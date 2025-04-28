@@ -200,6 +200,14 @@ The configuration menu has the following options:
                   Set to AUTO to use one of whatever the game 
                   specifies for a frame.
 
+    m. HDMA ENABLE 
+                  Set to YES to allow the game to emulate HDMA. This
+                  may cause games to slowdown on the GBA whenever it 
+                  uses HDMA, but some games must require HDMA before 
+                  its backgrounds are properly viewable. 
+                  Set to NO to disable all HDMA emulation. 
+                  
+
     y. RETURN TO GAME
                   Returns to the game. Pressing start in the 
                   configuration screen also returns you to the game

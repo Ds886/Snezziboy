@@ -1,6 +1,6 @@
 /*
 -------------------------------------------------------------------
-Snezziboy v0.24
+Snezziboy v0.25
 
 Copyright (C) 2006 bubble2k
 
@@ -35,12 +35,13 @@ GNU General Public License for more details.
     .equ    configBackdrop,     (configSRAMBase+4)
     .equ    configBGEnable,     (configSRAMBase+5)
     .equ    configBGForceMode,  (configSRAMBase+6)
-    .equ    configCTRL,         (configSRAMBase+7)
-    .equ    configA,            (configSRAMBase+8)
-    .equ    configB,            (configSRAMBase+9)
-    .equ    configX,            (configSRAMBase+10)
-    .equ    configY,            (configSRAMBase+11)
-    .equ    configBGPrioritySet,(configSRAMBase+12)
+    .equ    configHDMAEnable,   (configSRAMBase+7)
+    .equ    configCTRL,         (configSRAMBase+8)
+    .equ    configA,            (configSRAMBase+9)
+    .equ    configB,            (configSRAMBase+10)
+    .equ    configX,            (configSRAMBase+11)
+    .equ    configY,            (configSRAMBase+12)
+    .equ    configBGPrioritySet,(configSRAMBase+13)
     
 
 @-------------------------------------------------------------------------
@@ -170,6 +171,44 @@ SetDebugState_UpdateState:
 @=========================================================================
 
 HardReset:
+    @ version 0.25 fix
+    @ so that the complete code to IWRAM will be copied into IWRAM
+    @ upon SNES reset
+    @
+    @ copy iwram code
+    ldr     r2, =0x03000000
+    ldr     r0, =ROMEnd
+    add     r0, r0, #0xFF
+    bic     r0, r0, #0xFF
+    ldr     r1, =IWRAMEnd
+    sub     r1, r1, r0
+    add     r1, r1, #0x3
+    bic     r1, r1, #0x3
+
+copyiwram:
+    ldmia   r0!, {r3,r4,r5,r6}
+    stmia   r2!, {r3,r4,r5,r6}
+    subs    r1, r1, #16
+    bpl     copyiwram
+    
+    @ version 0.25 code/data realignment
+    @ copy ewram code/data
+    @
+    @ldr     r2, =0x02033000
+    @ldr     r0, =ROM2End
+    @add     r0, r0, #0xF
+    @bic     r0, r0, #0xF
+    @ldr     r1, =EWRAMEnd
+    @sub     r1, r1, r0
+    @add     r1, r1, #0x3
+    @bic     r1, r1, #0x3
+
+@copyewram:
+    @ldmia   r0!, {r3,r4,r5,r6}
+    @stmia   r2!, {r3,r4,r5,r6}
+    @subs    r1, r1, #16
+    @bpl     copyewram
+    
     @ disable force blank
     ldr     r2, =0x04000000
     ldrh    r0, [r2]
@@ -318,6 +357,7 @@ checkOption_Loop:
     subs    r8, r8, #1
     bne     checkOption_Loop
     
+    
 
 SetInterruptVectors:
     bl      configUpdateKeyMap
@@ -328,6 +368,28 @@ SetInterruptVectors:
     ldr     r0, =bgOffsetCurrFrame
     mov     r1, #1
     str     r1, [r0]
+
+    @ version 0.25 fix    
+    @ prepare the DMA Channels
+    @    
+    @ DMA Channel 1 (for bank MapCache)
+    @
+    ldr     r0, =0x040000C0         @ DMA 1 Destinate Address
+    ldr     r2, =MapCache
+    str     r2, [r0], #4
+    mov     r2, #16
+    strh    r2, [r0]
+    
+    @ DMA Channel 2 (for copying of BG positions)
+    @
+    ldr     r0, =0x40000C8          
+    ldr     r2, =regBG1HOffset      @ DMA2 Source Address
+    str     r2, [r0], #4
+    ldr     r2, =0
+    str     r2, [r0], #4
+    mov     r2, #4                  @ DMA2 Count
+    strh    r2, [r0], #2
+    
     
     @ get all the interrupt vectors
     @
@@ -368,9 +430,42 @@ SetInterruptVectors:
     TranslateAndSavePC
     
     @ get the ScanlineEnd code and save it
-    ldr     r2, =ScanlineEnd
+    ldr     r2, =ScanlineEnd_Copy
     ldr     r0, [r2]
     ldr     r1, =ScanlineEnd_Code
+    str     r0, [r1]
+    mov     r0, #0
+    str     r0, [r2]
+    
+    @ version 0.25
+    @ get the HDMA code and save it
+    ldr     r2, =ScanlineEnd_HDMA
+    ldr     r0, [r2]
+    ldr     r1, =HDMA_Code
+    str     r0, [r1]
+    mov     r0, #0
+    str     r0, [r2]
+    
+    @ get the HDMA frame init code and save it
+    ldr     r2, =Scanline0_FrameInit
+    ldr     r0, [r2]
+    ldr     r1, =HDMAFrameInit_Code
+    str     r0, [r1]
+    mov     r0, #0
+    str     r0, [r2]
+    
+    @ get the VRAM translation at register $2118 init code and save it
+    ldr     r2, =W2118_AddrXlate
+    ldr     r0, [r2]
+    ldr     r1, =W2118_AddrXlateOp
+    str     r0, [r1]
+    mov     r0, #0
+    str     r0, [r2]
+    
+    @ get the VRAM translation at register $2118 init code and save it
+    ldr     r2, =W2119_AddrXlate
+    ldr     r0, [r2]
+    ldr     r1, =W2119_AddrXlateOp
     str     r0, [r1]
     mov     r0, #0
     str     r0, [r2]
@@ -1549,47 +1644,59 @@ writeTextEnd:
 @ Configuration text
 @=========================================================================
 
-    .equ    optionCount, 14
+    .equ    optionCount, 15
 
 configOptionLeft:
     .word   config_BG0
     .word   config_BG1
     .word   config_BG2
     .word   config_BG3
+    
     .word   config_BACKDROP
     .word   config_BGENABLE
     .word   config_BGFORCEMODE
+    .word   config_HDMAENABLE
+    
     .word   config_CTRL
     .word   config_A
     .word   config_B
     .word   config_X
+    
     .word   config_Y
     .word   config_RETURN
     .word   config_RESET
 
 configOptionCount:
-    .word   5, 5, 5, 5, 2, 2, 9, 4, 4, 4, 4, 4, 1, 1
+    .word   5, 5, 5, 5
+    .word   2, 2, 9, 2 
+    .word   4, 4, 4, 4 
+    .word   4, 1, 1
 
 configOption:
     .word   configOptionSet_BG
     .word   configOptionSet_BG
     .word   configOptionSet_BG
     .word   configOptionSet_BG
+    
     .word   configOptionSet_YesNo
     .word   configOptionSet_SlowFast
     .word   configOptionSet_Modes
+    .word   configOptionSet_YesNo
+    
     .word   configOptionSet_Ctrl
     .word   configOptionSet_Key
     .word   configOptionSet_Key
     .word   configOptionSet_Key
+    
     .word   configOptionSet_Key
     .word   configOptionSet_Empty
     .word   configOptionSet_Empty
     
 configDefaultOption:
     .word   1, 2, 0, 3 
-    .word   0, 0, 0, 2 
-    .word   2, 0, 3, 1
+    .word   0, 0, 0, 0
+    .word   2, 2, 0, 3 
+    .word   1
 
 configOptionSet_BG:
     .word   configBG_Prio0, configBG_Prio1, configBG_Prio2, configBG_Prio3, configBG_Disabled
@@ -1625,6 +1732,7 @@ config_Y:           .asciz "BUTTON Y"
 config_BACKDROP:    .asciz "BACKDROP"
 config_BGENABLE:    .asciz "BG ENABLE"
 config_BGFORCEMODE: .asciz "BG FORCED MODE"
+config_HDMAENABLE:  .asciz "HDMA ENABLE"
 config_RETURN:      .asciz "RETURN TO GAME"
 config_RESET:       .asciz "RESET GAME"
 
@@ -1809,7 +1917,7 @@ configExit:
 
     @ then we restore and update the palettes
     @
-    ldr     r0, =0x05000000
+    ldr     r0, =cgramBase
     ldr     r1, =0x0600ff00
     mov     r8, #16
 configRestorePaletteLoop:
@@ -1931,6 +2039,22 @@ configUpdateMisc:
     ldr     r2, =snesRenderScreenAtVBlank_ForceMode
     str     r1, [r2]
     
+    @ version 0.25
+    @ update the HDMA code based on the HDMA option
+    @
+    ldr     r2, =configHDMAEnable
+    ldrb    r2, [r2]
+    cmp     r2, #0
+    ldreq   r1, hdmaCode
+    movne   r1, #0
+    ldr     r2, =HDMA_FrameInit
+    str     r1, [r2]
+    ldr     r2, =HDMA_Start
+    str     r1, [r2]
+    
+    bx      lr
+
+hdmaCode:
     bx      lr
 
 @-------------------------------------------------------------------------
@@ -2595,7 +2719,7 @@ IOWrite:
     IO  0x210,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x0000-
     
     IO  0x001,  W2100,W2101,W2102,W2103,W2104,W2105,W2106,W2107, W2108,W2109,W210A,W210B,W210C,W210D,W210E,W210F     @ 0x2100-
-    IO  0x001,  W2110,W2111,W2112,W2113,W2114,W2115,W2116,W2117, W2118,W2119,IONOP,W211B,W211C,W211D,W211E,W211F     @ 0x2110-
+    IO  0x001,  W2110,W2111,W2112,W2113,W2114,W2115,W2116,W2117, W2118,W2119,W211A,W211B,W211C,W211D,W211E,W211F     @ 0x2110-
     IO  0x001,  W2120,W2121,W2122,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,W212C,W212D,IONOP,IONOP     @ 0x2120-
     IO  0x001,  W2130,W2131,W2132,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x2130-
     IO  0x001,  W2140,W2141,W2142,W2143,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x2140-
@@ -2609,7 +2733,7 @@ IOWrite:
     IO  0x001,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,W4016,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x4010
     IO  0x01e,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x4020
     
-    IO  0x001,  W4200,IONOP,W4202,W4203,W4204,W4205,W4206,W4207, W4208,W4209,W420A,W420B,IONOP,W420D,IONOP,IONOP     @ 0x4200
+    IO  0x001,  W4200,IONOP,W4202,W4203,W4204,W4205,W4206,W4207, W4208,W4209,W420A,W420B,W420C,W420D,IONOP,IONOP     @ 0x4200
     IO  0x00f,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x4210
     
     IO  0x001,  W43x0,W43x1,W43x2,W43x3,W43x4,W43x5,W43x6,W43x7, W43x8,W43x9,W43xA,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x4300
@@ -2625,6 +2749,23 @@ IOWrite:
 
     IO  0x200,  W_SAV,W_SAV,W_SAV,W_SAV,W_SAV,W_SAV,W_SAV,W_SAV, W_SAV,W_SAV,W_SAV,W_SAV,W_SAV,W_SAV,W_SAV,W_SAV     @ 0x6000
 
+@=========================================================================
+@ version 0.25
+@ HDMA Write Addresses
+@
+@ Currently only for BG OFFSETs
+@=========================================================================
+HDMAWrite:
+    IO  0x001,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,W210D,W210E,W210F     @ 0x2100-
+    IO  0x001,  W2110,W2111,W2112,W2113,W2114,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x2110-
+    IO  0x001,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x2120-
+    IO  0x001,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x2130-
+    IO  0x001,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x2140-
+    IO  0x001,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x2150-
+    IO  0x001,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x2160-
+    IO  0x001,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x2170-
+    IO  0x001,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x2180-
+    IO  0x007,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x2190
 
 @=========================================================================
 @ GBA to SNES Keypad mapping
@@ -8943,9 +9084,9 @@ bgYOffset:
     .byte 0x7e,0x7e,0x7f,0x80,0x81,0x81,0x82,0x83,0x83,0x84,0x85,0x86,0x86,0x87,0x88,0x88
     .byte 0x89,0x8a,0x8b,0x8b,0x8c,0x8d,0x8d,0x8e,0x8f,0x90,0x90,0x91,0x92,0x92,0x93,0x94
     .byte 0x95,0x95,0x96,0x97,0x97,0x98,0x99,0x9a,0x9a,0x9b,0x9c,0x9c,0x9d,0x9e,0x9f,0x9f
-    .byte 0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f
-    .byte 0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f
-    .byte 0x9f,0x9f,0x9f,0x9f,0x9f,0x9f
+    .byte 0xa0,0xa0,0xa0,0xa0,0xa0,0xa0,0xa0,0xa0,0xa0,0xa0,0xa0,0xa0,0xa0,0xa0,0xa0,0xa0
+    .byte 0xa0,0xa0,0xa0,0xa0,0xa0,0xa0,0xa0,0xa0,0xa0,0xa0,0xa0,0xa0,0xa0,0xa0,0xa0,0xa0
+    .byte 0xa0,0xa0,0xa0,0xa0,0xa0,0xa0,0x00
 
 @=========================================================================
 @ memory mapping table

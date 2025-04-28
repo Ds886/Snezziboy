@@ -1,6 +1,6 @@
 /*
 -------------------------------------------------------------------
-Snezziboy v0.24
+Snezziboy v0.25
 
 Copyright (C) 2006 bubble2k
 
@@ -115,11 +115,11 @@ GNU General Public License for more details.
     add     r0, r0, r2              @ 1 cycles
 .endm
 
-.macro TranslateAddressDMA
+.macro TranslateAddressDMA targetReg=r0
     ldr     r6, =MemoryMap
     mov     r1, r0, lsr #13
     ldr     r6, [r6, r1, lsl #2]
-    add     r0, r0, r6
+    add     \targetReg, r0, r6
 .endm
 
 .macro TranslateAddressFromMapCache
@@ -139,25 +139,21 @@ GNU General Public License for more details.
 .macro CacheMemoryMap
     and     r0, SnesDBR, #0xff
     add     r1, r4, r0, lsl #5
-    ldr     r2, =0x040000BC         @ DMA 1 Source Address
-    str     r1, [r2]
+    ldr     r0, =0x040000BC         @ DMA 1 Source Address
+    str     r1, [r0], #10
 
-    ldr     r0, =0x040000C0         @ DMA 1 Destinate Address
+    @ version 0.25 fix
+    @ prepared some DMA Channel 1 variables in advance
+    @ upon SNES reset
+    @
     ldr     r2, =MapCache
-    str     r2, [r0]
-
     and     r1, SnesDBR, #0xff
     sub     r2, r2, r1, lsl #5
     ldr     r1, =MapCacheOffset     @ save the offset
     str     r2, [r1]
 
-    ldr     r1, =0x040000C4         @ DMA 1 Word Count
-    mov     r2, #16
-    strh    r2, [r1]
-
-    ldr     r1, =0x040000C6         @ DMA 1 Control
     ldr     r2, =((1<<10)+(1<<15))        @ inc src, inc dest, size=32 bit, start
-    strh    r2, [r1]
+    strh    r2, [r0]
 .endm
 
 @=========================================================================
@@ -167,20 +163,20 @@ GNU General Public License for more details.
 @   r0:     address
 @=========================================================================
 .macro ReadAddrOperand8             @ (3 cycles)
-    ldrb    r0, [SnesPC, #1]        @ 3
+    ldrb    r0, [SnesPC], #1        @ 3
 .endm
 
 .macro ReadAddrOperand16            @ (6 cycles)
-    ldrb    r0, [SnesPC, #1]        @ 3
-    ldrb    r2, [SnesPC, #2]        @ 2
+    ldrb    r0, [SnesPC], #1        @ 3
+    ldrb    r2, [SnesPC], #1        @ 2
     add     r0, r0, r2, lsl #8      @ 1
 .endm
 
 .macro ReadAddrOperand24            @ (9 cycles)
-    ldrb    r0, [SnesPC, #1]        @ 3
-    ldrb    r2, [SnesPC, #2]        @ 2
+    ldrb    r0, [SnesPC], #1        @ 3
+    ldrb    r2, [SnesPC], #1        @ 2
     add     r0, r0, r2, lsl #8      @ 1
-    ldrb    r2, [SnesPC, #3]        @ 2
+    ldrb    r2, [SnesPC], #1        @ 2
     add     r0, r0, r2, lsl #16     @ 1
 .endm
 
@@ -190,7 +186,7 @@ GNU General Public License for more details.
 @ returns
 @   r1:     data
 @=========================================================================
-.macro ReadDataOperand index=1
+.macro ReadDataOperand 
     .ifeq mBit-8
         ReadDataOperand8 \index
     .else
@@ -199,12 +195,12 @@ GNU General Public License for more details.
 .endm
 
 .macro ReadDataOperand8 index=1                 @ (3 cycles)
-    ldrb    r1, [SnesPC, #(\index)]
+    ldrb    r1, [SnesPC], #1
 .endm
 
 .macro ReadDataOperand16 index=1                @ (7 cycles)
-    ldrb    r1, [SnesPC, #(\index)]
-    ldrb    r2, [SnesPC, #(\index+1)]
+    ldrb    r1, [SnesPC], #1
+    ldrb    r2, [SnesPC], #1
     add     r1, r1, r2, lsl #8
 .endm
 
@@ -301,8 +297,10 @@ GNU General Public License for more details.
         ReadIO8
         ldrb    r1,[r0, #(\index)]
     .else
-        add r0, SnesPC, #1
-        ldrb    r1,[r0, #(\index)]
+        @add r0, SnesPC, #1
+        @ldrb    r1,[r0, #(\index)]
+        @mov     r0, SnesPC
+        ldrb    r1,[SnesPC], #1
     .endif
 .endm
 
@@ -314,20 +312,16 @@ GNU General Public License for more details.
         ldrb    r2,[r0, #(\index+1)]
         add     r1, r1, r2, lsl #8
     .else
-        add r0, SnesPC, #1
-        ldrb    r1,[r0, #(\index)]
-        ldrb    r2,[r0, #(\index+1)]
+        @add r0, SnesPC, #1
+        @ldrb    r1,[r0, #(\index)]
+        @ldrb    r2,[r0, #(\index+1)]
+        @mov     r0, SnesPC
+        ldrb    r1,[SnesPC], #1
+        ldrb    r2,[SnesPC], #1
         add     r1, r1, r2, lsl #8
     .endif
 .endm 
 
-.macro ReadData24 index=0
-    ldrb    r1,[r0, #(\index)]
-    ldrb    r2,[r0, #(\index+1)]
-    add     r1, r1, r2, lsl #8
-    ldrb    r2,[r0, #(\index+2)]
-    add     r1, r1, r2, lsl #16
-.endm
 
 
 @=========================================================================
@@ -417,7 +411,7 @@ GNU General Public License for more details.
 @ Immediate #1234
 @-------------------------------------------------------------------------
 .macro  Immediate
-    add     r0, SnesPC, #1
+    @add     r0, SnesPC, #1
 .endm
 
 
@@ -696,7 +690,7 @@ GNU General Public License for more details.
 @              +                LLLLLLLL 
 @-------------------------------------------------------------------------
 .macro StackRelative
-    ldrb    r1, [SnesPC, #1]
+    ldrb    r1, [SnesPC], #1
     add     r0, r1, SnesSP, lsr #16
 .endm
 
@@ -1189,9 +1183,86 @@ ADCD_m1:
     AddPC   \pcinc, \cycles
 .endm
 
+.macro OpSBCD mode, pcinc, cycles
+    
+    tsts    SnesMXDI, #SnesFlagM
+    bne     SBCD_m1
+
+    @ another elegant solution from Snes Advance
+    @ 16-bit
+    @
+SBCD_m0:
+    @ r1 = 0000XXxx, SnesA = AAaa0000
+    stmfd   sp!, {r3}
+    
+	movs    r0, SnesCV, lsr #2          @ get C
+	mov     r0, r1, lsr #16             @ r0 = high
+	and     r1, r1, #0xff               @ r1 = low
+
+	mov     r2, SnesA, lsl#12
+	sbcs    r3, r2, r1, lsl#28
+	and     r3, r3, #0xf0000000
+	subcc   r3, r3, #0x60000000
+
+	mov     r2, SnesA, lsr #20
+	and     r2, r2, #0xF
+	sbcs    r1, r2, r1, lsr#4
+	mov     r1, r1, lsl #28
+	subcc   r1, r1, #0x60000000
+	orr     r3, r1, r3, lsr #4
+
+	mov     r2, SnesA, lsl #4
+	and     r2, r2, #0xF0000000
+	sbcs    r1, r2, r0, lsl #28
+	and     r1, r1, #0xf0000000
+	subcc   r1, r1, #0x60000000
+	orr     r3, r1, r3, lsr #4
+
+	mov     r2, SnesA, lsr #28
+	sbcs    r1, r2, r0, lsr #4
+	mov     r1, r1, lsl #28
+	subcc   r1, r1, #0x60000000
+	orr     SnesA, r1, r3, lsr #4
+	
+	mov     SnesNZ, SnesA, lsr #16
+    biccc   SnesCV, SnesCV, #SnesFlagC
+    orrcs   SnesCV, SnesCV, #SnesFlagC
+    
+    ldmfd   sp!, {r3}
+	AddPC   0, 0
+
+    @ 8-bit
+    @
+SBCD_m1:
+	movs    r0, SnesCV, lsr #2          @ get C
+    mov     r0, r1
+	
+	mov     r2, SnesA, lsl #4
+	sbcs    r1, r2, r0, lsl #28
+	and     r1, r1, #0xf0000000
+	subcc   r1, r1, #0x60000000
+
+	mov     r2, SnesA, lsr #28
+	sbcs    r0, r2, r0, lsr #4
+	mov     r0, r0, lsl #28
+	subcc   r0, r0, #0x60000000
+	orr     SnesA, r0, r1, lsr #4
+	
+	mov     SnesNZ, SnesA, lsr #16
+    biccc   SnesCV, SnesCV, #SnesFlagC
+    orrcs   SnesCV, SnesCV, #SnesFlagC
+	AddPC   0, 0
+
+.endm
+
 .macro OpSBC mode, pcinc, cycles
     \mode
     ReadData
+
+    AddPCNoJump   \pcinc, \cycles
+
+    tsts    SnesMXDI, #SnesFlagD
+    bne     OpSBCDCode
 
     @ elegant SBC from SNES Advance
     @
@@ -1208,7 +1279,7 @@ ADCD_m1:
     orrvs   SnesCV, SnesCV, #SnesFlagV
     mov     SnesNZ, SnesA, lsr #16
     
-    AddPC   \pcinc, \cycles
+    AddPC   0, 0
 .endm
 
 .macro OpTSB mode, pcinc, cycles
@@ -1462,10 +1533,13 @@ ADCD_m1:
 
 .macro OpMVP mode, pcinc, cycles
     \mode
+    sub     SnesPC, SnesPC, #1
 
     stmfd   sp!, {r7}
     .ifeq mBit-8
-        mov     SnesA, SnesA, ror #8
+        mov     SnesA, SnesA, lsr #8
+        ldr     r0, SnesB
+        orr     SnesA, SnesA, r0
     .endif
     .ifeq xBit-8
         mov     r7, #0x0000ff00
@@ -1476,7 +1550,9 @@ ADCD_m1:
     bl      OpMVP_Code
 
     .ifeq mBit-8
-        mov     SnesA, SnesA, ror #24
+        and     r0, SnesA, #0xff000000
+        str     r0, SnesB
+        mov     SnesA, SnesA, lsl #8
     .endif
     ldmfd   sp!, {r7}
 
@@ -1486,9 +1562,13 @@ ADCD_m1:
 
 .macro OpMVN mode, pcinc, cycles
     \mode
+    sub     SnesPC, SnesPC, #1
+    
     stmfd   sp!, {r7}
     .ifeq mBit-8
-        mov     SnesA, SnesA, ror #8
+        mov     SnesA, SnesA, lsr #8
+        ldr     r0, SnesB
+        orr     SnesA, SnesA, r0
     .endif
     .ifeq xBit-8
         mov     r7, #0x0000ff00
@@ -1499,7 +1579,9 @@ ADCD_m1:
     bl      OpMVN_Code
 
     .ifeq mBit-8
-        mov     SnesA, SnesA, ror #24
+        and     r0, SnesA, #0xff000000
+        str     r0, SnesB
+        mov     SnesA, SnesA, lsl #8
     .endif
     ldmfd   sp!, {r7}
 
@@ -1824,7 +1906,6 @@ ADCD_m1:
 .macro OpPER mode, pcinc, cycles
     ReadDataOperand16
     add     r1, r1, SnesPC
-    add     r1, r1, #3              @ add the next PC's address
     ldr     r0, SnesPCOffset
     add     r1, r1, r0
     Push16
@@ -1939,12 +2020,10 @@ ADCD_m1:
 @=========================================================================
 @ Branch, Jump and Return opcodes
 @=========================================================================
-.macro JumpPC reg
-    add     SnesPC, SnesPC, \reg
-.endm
-
 .macro OpBRL mode, pcinc, cycles
     ReadDataOperand16
+    
+    sub     SnesPC, SnesPC, #3
     mov     r1, r1, lsl #16
     mov     r1, r1, asr #16
     
@@ -1959,7 +2038,7 @@ ADCD_m1:
 .endm
 
 .macro OpBRA mode, pcinc, cycles
-    ldrsb   r1, [SnesPC, #1]
+    ldrsb   r1, [SnesPC], #-1
     
     @ safe jump to retain program bank
     @
@@ -1972,7 +2051,8 @@ ADCD_m1:
 .endm
 
 .macro OpBR bitToTest, set, pcinc, cycles
-    ldrsb   r1, [SnesPC, #1]
+    ldrsb   r1, [SnesPC], #-1
+    add     SnesPC, SnesPC, #2
     .ifeq \bitToTest-SnesFlagZ
         movs    r0, SnesNZ, lsl #16
         .ifeq \set-1
@@ -2018,12 +2098,12 @@ ADCD_m1:
         and     r1, SnesPBR, #0x000000ff
         Push8
     .endif
-    add     SnesPC, SnesPC, #(\pcinc-1)
+    sub     SnesPC, SnesPC, #1
     ldr     r1, SnesPCOffset
     add     r1, SnesPC, r1
     Push16
 
-    sub     SnesPC, SnesPC, #(\pcinc-1)
+    add     SnesPC, SnesPC, #1
     TranslateAndSavePC  1
     AddPC   0, \cycles
 .endm
@@ -2084,8 +2164,26 @@ ADCD_m1:
 @=========================================================================
 @ Others 
 @=========================================================================
+
+@ version 0.25
+@
+.macro SkipScanline
+    @ force interrupt to occur
+    @
+    ldr     r0, =regHDMAEnable
+    ldrb    r0, [r0]
+    cmp     r0, #0
+    movne   r0, #0x10
+    ldreqb  r0, regNMI
+    mov     r0, r0, lsr #4
+    ldr     r1, =ScanlineSkipTable
+    mov     lr, pc
+    ldr     pc, [r1, r0, lsl #2]
+.endm
+
 .macro OpBRK mode, pcinc, cycles
     mov     r11, r11
+    add     SnesPC, SnesPC, #1
     ExecuteInterrupt    BRKaddress
     AddPC   \pcinc, \cycles
 .endm
@@ -2093,23 +2191,20 @@ ADCD_m1:
 .macro OpCOP mode, pcinc, cycles
     @ added for version 0.22
     @
+    add     SnesPC, SnesPC, #1
     ExecuteInterrupt    COPaddress
     AddPC   \pcinc, \cycles
 .endm
 
 .macro  OpWAI mode, pcinc, cycles
+
+    sub     SnesPC, SnesPC, #1
     mov     SnesCYCLES, SnesCYCLES, lsl #20      @ set the cycles to zero to trigger next interrupt
     mov     SnesCYCLES, SnesCYCLES, lsr #20 
     
     orr     SnesWAI, SnesWAI, #SnesFlagWAI
 
-    @ force interrupt to occur
-    @
-    ldrb    r0, regNMI                          
-    mov     r0, r0, lsr #4
-    ldr     r1, =ScanlineSkipTable
-    mov     lr, pc
-    ldr     pc, [r1, r0, lsl #2]
+    SkipScanline
 
     AddPC   \pcinc, 0
 .endm
@@ -2119,15 +2214,9 @@ ADCD_m1:
     mov     SnesCYCLES, SnesCYCLES, lsl #20      @ set the cycles to zero to trigger next interrupt
     mov     SnesCYCLES, SnesCYCLES, lsr #20 
 
-    @ skip scan line
-    @
-    ldrb    r0, regNMI                          
-    mov     r0, r0, lsr #4
-    ldr     r1, =ScanlineSkipTable
-    mov     lr, pc
-    ldr     pc, [r1, r0, lsl #2]
+    SkipScanline
 
-    ldrb    r1, [SnesPC, #1]
+    ldrb    r1, [SnesPC], #-1
     and     r0, r1, #0x80                       @ r0 = instruction to branch to
     mov     r0, r0, lsr #2
     orr     r0, r0, #0xD0                       @ r0 = $DO (BNE) / $FO (BEQ)
@@ -2146,16 +2235,9 @@ ADCD_m1:
     mov     SnesCYCLES, SnesCYCLES, lsl #20      @ set the cycles to zero to trigger next interrupt
     mov     SnesCYCLES, SnesCYCLES, lsr #20 
 
-        
-    @ skip scan line
-    @
-    ldrb    r0, regNMI                          @ is the H interrupt set (and V interrupt not set)?
-    mov     r0, r0, lsr #4
-    ldr     r1, =ScanlineSkipTable
-    mov     lr, pc
-    ldr     pc, [r1, r0, lsl #2]
+    SkipScanline
 
-    ldrb    r1, [SnesPC, #1]
+    ldrb    r1, [SnesPC], #-1
     and     r0, r1, #0xF0                       @ r0 = instruction to branch to
     
     orr     r1, r1, #0xF0
@@ -2305,7 +2387,7 @@ ADCD_m1:
 @ Add PC and end execution, return to fetch
 @-------------------------------------------------------------------------
 .macro OpcodeFetch
-    ldrmib  r0, [SnesPC]                        @ 3 (for WRAM/ROM access)
+    ldrmib  r0, [SnesPC], #1                    @ 3 (for WRAM/ROM access)
     addmi   r0, EmuDecoder, r0, lsl #3          @ 1
     ldmmiia r0, {lr, pc}                        @ 4 ?
 .endm
@@ -2323,9 +2405,9 @@ ADCD_m1:
 .endm
 
 .macro AddPCNoJump v, cycles
-    .ifne   \v
-        add     SnesPC, SnesPC, #\v
-    .endif
+    @.ifne   \v
+    @    add     SnesPC, SnesPC, #\v
+    @.endif
 
     adds    SnesCYCLES, SnesCYCLES, #(\cycles << CYCLE_SHIFT)
 .endm

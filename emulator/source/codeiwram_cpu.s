@@ -1,6 +1,6 @@
 /*
 -------------------------------------------------------------------
-Snezziboy v0.24
+Snezziboy v0.25
 
 Copyright (C) 2006 bubble2k
 
@@ -31,22 +31,22 @@ GNU General Public License for more details.
 @-------------------------------------------------------------------
 m0x0Decoder:
     .long BRK_m0x0,S_28,      ORA_m0x0,DXI_26,    COP_m0x0,S_28,      ORA_m0x0,DS_24,     TSB_m0x0,D_25,      ORA_m0x0,D_23,      ASL_m0x0,D_25,      ORA_m0x0,DIL_26     
-    .long PHP_m0x0,PHP_m0x0,  ORA_m0x0,IMM_m0,    ASLA_m0x0,REGA_12,  PHD_m0x0,PHD_m0x0,  TSB_m0x0,A_36,      ORA_m0x0,A_34,      ASL_m0x0,A_36,      ORA_m0x0,AL_45      
+    .long PHP_m0x0,PHP_m0x0,  ORA_m0x0I,ORA_m0x0I,ASLA_m0x0,ASLA_m0x0,PHD_m0x0,PHD_m0x0,  TSB_m0x0,A_36,      ORA_m0x0,A_34,      ASL_m0x0,A_36,      ORA_m0x0,AL_45      
     .long BPL_m0x0,BPL_m0x0,  ORA_m0x0,DIY_25,    ORA_m0x0,DI_25,     ORA_m0x0,DSIY_27,   TRB_m0x0,D_25,      ORA_m0x0,DX_24,     ASL_m0x0,DX_26,     ORA_m0x0,DILY_26    
-    .long CLC_m0x0,CLC_m0x0,  ORA_m0x0,AY_34,     INCA_m0x0,REGA_12,  TCS_m0x0,TCS_m0x0,  TRB_m0x0,A_36,      ORA_m0x0,AX_34,     ASL_m0x0,AX_37,     ORA_m0x0,ALX_45     
-    .long JSR_m0x0,A_J36,     AND_m0x0,DXI_26,    JSL_m0x0,AL_J48,    AND_m0x0,DS_24,     BIT_m0x0,D_23,      AND_m0x0,D_23,      ROL_m0x0,D_25,      AND_m0x0,DIL_26     
-    .long PLP_m0x0,PLP_m0x0,  AND_m0x0I,AND_m0x0I,ROLA_m0x0,REGA_12,  PLD_m0x0,PLD_m0x0,  BIT_m0x0,A_34,      AND_m0x0,A_34,      ROL_m0x0,A_36,      AND_m0x0,AL_45      
+    .long CLC_m0x0,CLC_m0x0,  ORA_m0x0,AY_34,     INCA_m0x0,INCA_m0x0,TCS_m0x0,TCS_m0x0,  TRB_m0x0,A_36,      ORA_m0x0,AX_34,     ASL_m0x0,AX_37,     ORA_m0x0,ALX_45     
+    .long JSR_m0x0A,JSR_m0x0A,AND_m0x0,DXI_26,    JSL_m0x0,JSL_m0x0,  AND_m0x0,DS_24,     BIT_m0x0,D_23,      AND_m0x0,D_23,      ROL_m0x0,D_25,      AND_m0x0,DIL_26     
+    .long PLP_m0x0,PLP_m0x0,  AND_m0x0I,AND_m0x0I,ROLA_m0x0,ROLA_m0x0,PLD_m0x0,PLD_m0x0,  BIT_m0x0,A_34,      AND_m0x0,A_34,      ROL_m0x0,A_36,      AND_m0x0,AL_45      
     .long BMI_m0x0,BMI_m0x0,  AND_m0x0,DIY_25,    AND_m0x0,DI_25,     AND_m0x0,DSIY_27,   BIT_m0x0,DX_24,     AND_m0x0,DX_24,     ROL_m0x0,DX_26,     AND_m0x0,DILY_26    
-    .long SEC_m0x0,SEC_m0x0,  AND_m0x0,AY_34,     DECA_m0x0,REGA_12,  TSC_m0x0,TSC_m0x0,  BIT_m0x0,AX_34,     AND_m0x0,AX_34,     ROL_m0x0,AX_37,     AND_m0x0,ALX_45     
+    .long SEC_m0x0,SEC_m0x0,  AND_m0x0,AY_34,     DECA_m0x0,DECA_m0x0,TSC_m0x0,TSC_m0x0,  BIT_m0x0,AX_34,     AND_m0x0,AX_34,     ROL_m0x0,AX_37,     AND_m0x0,ALX_45     
     .long RTI_m0x0,RTI_m0x0,  EOR_m0x0,DXI_26,    RES_m0x0,RES_m0x0,  EOR_m0x0,DS_24,     MVP_m0x0,MVP_m0x0,  EOR_m0x0,D_23,      LSR_m0x0,D_25,      EOR_m0x0,DIL_26     
-    .long PHA_m0x0,PHA_m0x0,  EOR_m0x0,IMM_m0,    LSRA_m0x0,REGA_12,  PHK_m0x0,PHK_m0x0,  JMP_m0x0,A_J33,     EOR_m0x0,A_34,      LSR_m0x0,A_36,      EOR_m0x0,AL_45      
+    .long PHA_m0x0,PHA_m0x0,  EOR_m0x0I,EOR_m0x0I,LSRA_m0x0,LSRA_m0x0,PHK_m0x0,PHK_m0x0,  JMP_m0x0,A_J33,     EOR_m0x0,A_34,      LSR_m0x0,A_36,      EOR_m0x0,AL_45      
     .long BVC_m0x0,BVC_m0x0,  EOR_m0x0,DIY_25,    EOR_m0x0,DI_25,     EOR_m0x0,DSIY_27,   MVN_m0x0,MVN_m0x0,  EOR_m0x0,DX_24,     LSR_m0x0,DX_26,     EOR_m0x0,DILY_26    
     .long CLI_m0x0,CLI_m0x0,  EOR_m0x0,AY_34,     PHY_m0x0,PHY_m0x0,  TCD_m0x0,TCD_m0x0,  JMP_m0x0,AL_J44,    EOR_m0x0,AX_34,     LSR_m0x0,AX_37,     EOR_m0x0,ALX_45     
     .long RTS_m0x0,RTS_m0x0,  ADC_m0x0,DXI_26,    PER_m0x0,PER_m0x0,  ADC_m0x0,DS_24,     STZ_m0x0,D_23,      ADC_m0x0,D_23,      ROR_m0x0,D_25,      ADC_m0x0,DIL_26     
-    .long PLA_m0x0,PLA_m0x0,  ADC_m0x0I,ADC_m0x0I,RORA_m0x0,REGA_12,  RTL_m0x0,RTL_m0x0,  JMP_m0x0,AI_J35,    ADC_m0x0,A_34,      ROR_m0x0,A_36,      ADC_m0x0,AL_45      
+    .long PLA_m0x0,PLA_m0x0,  ADC_m0x0I,ADC_m0x0I,RORA_m0x0,RORA_m0x0,RTL_m0x0,RTL_m0x0,  JMP_m0x0,AI_J35,    ADC_m0x0,A_34,      ROR_m0x0,A_36,      ADC_m0x0,AL_45      
     .long BVS_m0x0,BVS_m0x0,  ADC_m0x0,DIY_25,    ADC_m0x0,DI_25,     ADC_m0x0,DSIY_27,   STZ_m0x0,DX_24,     ADC_m0x0,DX_24,     ROR_m0x0,DX_26,     ADC_m0x0,DILY_26    
     .long SEI_m0x0,SEI_m0x0,  ADC_m0x0,AY_34,     PLY_m0x0,PLY_m0x0,  TDC_m0x0,TDC_m0x0,  JMP_m0x0,AXI_J36,   ADC_m0x0,AX_34,     ROR_m0x0,AX_37,     ADC_m0x0,ALX_45     
-    .long BRA_m0x0,BRA_m0x0,  STA_m0x0,DXI_26,    BRL_m0x0,RL_J33,    STA_m0x0,DS_24,     STY_m0x0,D_23,      STAD_m0x0,STAD_m0x0,STX_m0x0,D_23,      STA_m0x0,DIL_26     
+    .long BRA_m0x0,BRA_m0x0,  STA_m0x0,DXI_26,    BRL_m0x0,BRL_m0x0,  STA_m0x0,DS_24,     STY_m0x0,D_23,      STAD_m0x0,STAD_m0x0,STX_m0x0,D_23,      STA_m0x0,DIL_26     
     .long DEY_m0x0,DEY_m0x0,  BIT_m0x0I,BIT_m0x0I,TXA_m0x0,TXA_m0x0,  PHB_m0x0,PHB_m0x0,  STY_m0x0,A_34,      STA_m0x0,A_34,      STX_m0x0,A_34,      STA_m0x0,AL_45      
     .long BCC_m0x0,BCC_m0x0,  STA_m0x0,DIY_26,    STA_m0x0,DI_25,     STA_m0x0,DSIY_27,   STY_m0x0,DX_24,     STA_m0x0,DX_24,     STX_m0x0,DY_24,     STA_m0x0,DILY_26    
     .long TYA_m0x0,TYA_m0x0,  STA_m0x0,AY_35,     TXS_m0x0,TXS_m0x0,  TXY_m0x0,TXY_m0x0,  STZ_m0x0,A_34,      STA_m0x0,AX_35,     STZ_m0x0,AX_35,     STA_m0x0,ALX_45     
@@ -59,27 +59,27 @@ m0x0Decoder:
     .long BNE_m0x0,BNE_m0x0,  CMP_m0x0,DIY_25,    CMP_m0x0,DI_25,     CMP_m0x0,DSIY_27,   PEI_m0x0,PEI_m0x0,  CMP_m0x0,DX_24,     DEC_m0x0,DX_26,     CMP_m0x0,DILY_26    
     .long CLD_m0x0,CLD_m0x0,  CMP_m0x0,AY_34,     PHX_m0x0,PHX_m0x0,  STP_m0x0,STP_m0x0,  JML_m0x0,AIL_J36,   CMP_m0x0,AX_34,     DEC_m0x0,AX_37,     CMP_m0x0,ALX_45     
     .long CPX_m0x0I,CPX_m0x0I,SBC_m0x0,DXI_26,    SEP_m0x0,SEP_m0x0,  SBC_m0x0,DS_24,     CPX_m0x0,D_23,      SBC_m0x0,D_23,      INC_m0x0,D_25,      SBC_m0x0,DIL_26     
-    .long INX_m0x0,INX_m0x0,  SBC_m0x0,IMM_m0,    NOP_m0x0,NOP_m0x0,  XBA_m0x0,XBA_m0x0,  CPX_m0x0,A_34,      SBC_m0x0,A_34,      INC_m0x0,A_36,      SBC_m0x0,AL_45      
+    .long INX_m0x0,INX_m0x0,  SBC_m0x0I,SBC_m0x0I,NOP_m0x0,NOP_m0x0,  XBA_m0x0,XBA_m0x0,  CPX_m0x0,A_34,      SBC_m0x0,A_34,      INC_m0x0,A_36,      SBC_m0x0,AL_45      
     .long BEQ_m0x0,BEQ_m0x0,  SBC_m0x0,DIY_25,    SBC_m0x0,DI_25,     SBC_m0x0,DSIY_27,   PEA_m0x0,PEA_m0x0,  SBC_m0x0,DX_24,     INC_m0x0,DX_26,     SBC_m0x0,DILY_26    
-    .long SED_m0x0,SED_m0x0,  SBC_m0x0,AY_34,     PLX_m0x0,PLX_m0x0,  XCE_m0x0,XCE_m0x0,  JSR_m0x0,AXI_J36,   SBC_m0x0,AX_34,     INC_m0x0,AX_37,     SBC_m0x0,ALX_45     
+    .long SED_m0x0,SED_m0x0,  SBC_m0x0,AY_34,     PLX_m0x0,PLX_m0x0,  XCE_m0x0,XCE_m0x0,  JSR_m0x0I,JSR_m0x0I,SBC_m0x0,AX_34,     INC_m0x0,AX_37,     SBC_m0x0,ALX_45     
 m0x1Decoder:
     .long BRK_m0x1,S_28,      ORA_m0x1,DXI_26,    COP_m0x1,S_28,      ORA_m0x1,DS_24,     TSB_m0x1,D_25,      ORA_m0x1,D_23,      ASL_m0x1,D_25,      ORA_m0x1,DIL_26     
-    .long PHP_m0x1,PHP_m0x1,  ORA_m0x1,IMM_m0,    ASLA_m0x1,REGA_12,  PHD_m0x1,PHD_m0x1,  TSB_m0x1,A_36,      ORA_m0x1,A_34,      ASL_m0x1,A_36,      ORA_m0x1,AL_45      
+    .long PHP_m0x1,PHP_m0x1,  ORA_m0x1I,ORA_m0x1I,ASLA_m0x1,ASLA_m0x1,PHD_m0x1,PHD_m0x1,  TSB_m0x1,A_36,      ORA_m0x1,A_34,      ASL_m0x1,A_36,      ORA_m0x1,AL_45      
     .long BPL_m0x1,BPL_m0x1,  ORA_m0x1,DIY_25,    ORA_m0x1,DI_25,     ORA_m0x1,DSIY_27,   TRB_m0x1,D_25,      ORA_m0x1,DX_24,     ASL_m0x1,DX_26,     ORA_m0x1,DILY_26    
-    .long CLC_m0x1,CLC_m0x1,  ORA_m0x1,AY_34,     INCA_m0x1,REGA_12,  TCS_m0x1,TCS_m0x1,  TRB_m0x1,A_36,      ORA_m0x1,AX_34,     ASL_m0x1,AX_37,     ORA_m0x1,ALX_45     
-    .long JSR_m0x1,A_J36,     AND_m0x1,DXI_26,    JSL_m0x1,AL_J48,    AND_m0x1,DS_24,     BIT_m0x1,D_23,      AND_m0x1,D_23,      ROL_m0x1,D_25,      AND_m0x1,DIL_26     
-    .long PLP_m0x1,PLP_m0x1,  AND_m0x1I,AND_m0x1I,ROLA_m0x1,REGA_12,  PLD_m0x1,PLD_m0x1,  BIT_m0x1,A_34,      AND_m0x1,A_34,      ROL_m0x1,A_36,      AND_m0x1,AL_45      
+    .long CLC_m0x1,CLC_m0x1,  ORA_m0x1,AY_34,     INCA_m0x1,INCA_m0x1,TCS_m0x1,TCS_m0x1,  TRB_m0x1,A_36,      ORA_m0x1,AX_34,     ASL_m0x1,AX_37,     ORA_m0x1,ALX_45     
+    .long JSR_m0x1A,JSR_m0x1A,AND_m0x1,DXI_26,    JSL_m0x1,JSL_m0x1,  AND_m0x1,DS_24,     BIT_m0x1,D_23,      AND_m0x1,D_23,      ROL_m0x1,D_25,      AND_m0x1,DIL_26     
+    .long PLP_m0x1,PLP_m0x1,  AND_m0x1I,AND_m0x1I,ROLA_m0x1,ROLA_m0x1,PLD_m0x1,PLD_m0x1,  BIT_m0x1,A_34,      AND_m0x1,A_34,      ROL_m0x1,A_36,      AND_m0x1,AL_45      
     .long BMI_m0x1,BMI_m0x1,  AND_m0x1,DIY_25,    AND_m0x1,DI_25,     AND_m0x1,DSIY_27,   BIT_m0x1,DX_24,     AND_m0x1,DX_24,     ROL_m0x1,DX_26,     AND_m0x1,DILY_26    
-    .long SEC_m0x1,SEC_m0x1,  AND_m0x1,AY_34,     DECA_m0x1,REGA_12,  TSC_m0x1,TSC_m0x1,  BIT_m0x1,AX_34,     AND_m0x1,AX_34,     ROL_m0x1,AX_37,     AND_m0x1,ALX_45     
+    .long SEC_m0x1,SEC_m0x1,  AND_m0x1,AY_34,     DECA_m0x1,DECA_m0x1,TSC_m0x1,TSC_m0x1,  BIT_m0x1,AX_34,     AND_m0x1,AX_34,     ROL_m0x1,AX_37,     AND_m0x1,ALX_45     
     .long RTI_m0x1,RTI_m0x1,  EOR_m0x1,DXI_26,    RES_m0x1,RES_m0x1,  EOR_m0x1,DS_24,     MVP_m0x1,MVP_m0x1,  EOR_m0x1,D_23,      LSR_m0x1,D_25,      EOR_m0x1,DIL_26     
-    .long PHA_m0x1,PHA_m0x1,  EOR_m0x1,IMM_m0,    LSRA_m0x1,REGA_12,  PHK_m0x1,PHK_m0x1,  JMP_m0x1,A_J33,     EOR_m0x1,A_34,      LSR_m0x1,A_36,      EOR_m0x1,AL_45      
+    .long PHA_m0x1,PHA_m0x1,  EOR_m0x1I,EOR_m0x1I,LSRA_m0x1,LSRA_m0x1,PHK_m0x1,PHK_m0x1,  JMP_m0x1,A_J33,     EOR_m0x1,A_34,      LSR_m0x1,A_36,      EOR_m0x1,AL_45      
     .long BVC_m0x1,BVC_m0x1,  EOR_m0x1,DIY_25,    EOR_m0x1,DI_25,     EOR_m0x1,DSIY_27,   MVN_m0x1,MVN_m0x1,  EOR_m0x1,DX_24,     LSR_m0x1,DX_26,     EOR_m0x1,DILY_26    
     .long CLI_m0x1,CLI_m0x1,  EOR_m0x1,AY_34,     PHY_m0x1,PHY_m0x1,  TCD_m0x1,TCD_m0x1,  JMP_m0x1,AL_J44,    EOR_m0x1,AX_34,     LSR_m0x1,AX_37,     EOR_m0x1,ALX_45     
     .long RTS_m0x1,RTS_m0x1,  ADC_m0x1,DXI_26,    PER_m0x1,PER_m0x1,  ADC_m0x1,DS_24,     STZ_m0x1,D_23,      ADC_m0x1,D_23,      ROR_m0x1,D_25,      ADC_m0x1,DIL_26     
-    .long PLA_m0x1,PLA_m0x1,  ADC_m0x1I,ADC_m0x1I,RORA_m0x1,REGA_12,  RTL_m0x1,RTL_m0x1,  JMP_m0x1,AI_J35,    ADC_m0x1,A_34,      ROR_m0x1,A_36,      ADC_m0x1,AL_45      
+    .long PLA_m0x1,PLA_m0x1,  ADC_m0x1I,ADC_m0x1I,RORA_m0x1,RORA_m0x1,RTL_m0x1,RTL_m0x1,  JMP_m0x1,AI_J35,    ADC_m0x1,A_34,      ROR_m0x1,A_36,      ADC_m0x1,AL_45      
     .long BVS_m0x1,BVS_m0x1,  ADC_m0x1,DIY_25,    ADC_m0x1,DI_25,     ADC_m0x1,DSIY_27,   STZ_m0x1,DX_24,     ADC_m0x1,DX_24,     ROR_m0x1,DX_26,     ADC_m0x1,DILY_26    
     .long SEI_m0x1,SEI_m0x1,  ADC_m0x1,AY_34,     PLY_m0x1,PLY_m0x1,  TDC_m0x1,TDC_m0x1,  JMP_m0x1,AXI_J36,   ADC_m0x1,AX_34,     ROR_m0x1,AX_37,     ADC_m0x1,ALX_45     
-    .long BRA_m0x1,BRA_m0x1,  STA_m0x1,DXI_26,    BRL_m0x1,RL_J33,    STA_m0x1,DS_24,     STY_m0x1,D_23,      STAD_m0x1,STAD_m0x1,STX_m0x1,D_23,      STA_m0x1,DIL_26     
+    .long BRA_m0x1,BRA_m0x1,  STA_m0x1,DXI_26,    BRL_m0x1,BRL_m0x1,  STA_m0x1,DS_24,     STY_m0x1,D_23,      STAD_m0x1,STAD_m0x1,STX_m0x1,D_23,      STA_m0x1,DIL_26     
     .long DEY_m0x1,DEY_m0x1,  BIT_m0x1I,BIT_m0x1I,TXA_m0x1,TXA_m0x1,  PHB_m0x1,PHB_m0x1,  STY_m0x1,A_34,      STA_m0x1,A_34,      STX_m0x1,A_34,      STA_m0x1,AL_45      
     .long BCC_m0x1,BCC_m0x1,  STA_m0x1,DIY_26,    STA_m0x1,DI_25,     STA_m0x1,DSIY_27,   STY_m0x1,DX_24,     STA_m0x1,DX_24,     STX_m0x1,DY_24,     STA_m0x1,DILY_26    
     .long TYA_m0x1,TYA_m0x1,  STA_m0x1,AY_35,     TXS_m0x1,TXS_m0x1,  TXY_m0x1,TXY_m0x1,  STZ_m0x1,A_34,      STA_m0x1,AX_35,     STZ_m0x1,AX_35,     STA_m0x1,ALX_45     
@@ -92,27 +92,27 @@ m0x1Decoder:
     .long BNE_m0x1,BNE_m0x1,  CMP_m0x1,DIY_25,    CMP_m0x1,DI_25,     CMP_m0x1,DSIY_27,   PEI_m0x1,PEI_m0x1,  CMP_m0x1,DX_24,     DEC_m0x1,DX_26,     CMP_m0x1,DILY_26    
     .long CLD_m0x1,CLD_m0x1,  CMP_m0x1,AY_34,     PHX_m0x1,PHX_m0x1,  STP_m0x1,STP_m0x1,  JML_m0x1,AIL_J36,   CMP_m0x1,AX_34,     DEC_m0x1,AX_37,     CMP_m0x1,ALX_45     
     .long CPX_m0x1I,CPX_m0x1I,SBC_m0x1,DXI_26,    SEP_m0x1,SEP_m0x1,  SBC_m0x1,DS_24,     CPX_m0x1,D_23,      SBC_m0x1,D_23,      INC_m0x1,D_25,      SBC_m0x1,DIL_26     
-    .long INX_m0x1,INX_m0x1,  SBC_m0x1,IMM_m0,    NOP_m0x1,NOP_m0x1,  XBA_m0x1,XBA_m0x1,  CPX_m0x1,A_34,      SBC_m0x1,A_34,      INC_m0x1,A_36,      SBC_m0x1,AL_45      
+    .long INX_m0x1,INX_m0x1,  SBC_m0x1I,SBC_m0x1I,NOP_m0x1,NOP_m0x1,  XBA_m0x1,XBA_m0x1,  CPX_m0x1,A_34,      SBC_m0x1,A_34,      INC_m0x1,A_36,      SBC_m0x1,AL_45      
     .long BEQ_m0x1,BEQ_m0x1,  SBC_m0x1,DIY_25,    SBC_m0x1,DI_25,     SBC_m0x1,DSIY_27,   PEA_m0x1,PEA_m0x1,  SBC_m0x1,DX_24,     INC_m0x1,DX_26,     SBC_m0x1,DILY_26    
-    .long SED_m0x1,SED_m0x1,  SBC_m0x1,AY_34,     PLX_m0x1,PLX_m0x1,  XCE_m0x1,XCE_m0x1,  JSR_m0x1,AXI_J36,   SBC_m0x1,AX_34,     INC_m0x1,AX_37,     SBC_m0x1,ALX_45     
+    .long SED_m0x1,SED_m0x1,  SBC_m0x1,AY_34,     PLX_m0x1,PLX_m0x1,  XCE_m0x1,XCE_m0x1,  JSR_m0x1I,JSR_m0x1I,SBC_m0x1,AX_34,     INC_m0x1,AX_37,     SBC_m0x1,ALX_45     
 m1x0Decoder:
     .long BRK_m1x0,S_28,      ORA_m1x0,DXI_26,    COP_m1x0,S_28,      ORA_m1x0,DS_24,     TSB_m1x0,D_25,      ORA_m1x0,D_23,      ASL_m1x0,D_25,      ORA_m1x0,DIL_26     
-    .long PHP_m1x0,PHP_m1x0,  ORA_m1x0,IMM_m1,    ASLA_m1x0,REGA_12,  PHD_m1x0,PHD_m1x0,  TSB_m1x0,A_36,      ORA_m1x0,A_34,      ASL_m1x0,A_36,      ORA_m1x0,AL_45      
+    .long PHP_m1x0,PHP_m1x0,  ORA_m1x0I,ORA_m1x0I,ASLA_m1x0,ASLA_m1x0,PHD_m1x0,PHD_m1x0,  TSB_m1x0,A_36,      ORA_m1x0,A_34,      ASL_m1x0,A_36,      ORA_m1x0,AL_45      
     .long BPL_m1x0,BPL_m1x0,  ORA_m1x0,DIY_25,    ORA_m1x0,DI_25,     ORA_m1x0,DSIY_27,   TRB_m1x0,D_25,      ORA_m1x0,DX_24,     ASL_m1x0,DX_26,     ORA_m1x0,DILY_26    
-    .long CLC_m1x0,CLC_m1x0,  ORA_m1x0,AY_34,     INCA_m1x0,REGA_12,  TCS_m1x0,TCS_m1x0,  TRB_m1x0,A_36,      ORA_m1x0,AX_34,     ASL_m1x0,AX_37,     ORA_m1x0,ALX_45     
-    .long JSR_m1x0,A_J36,     AND_m1x0,DXI_26,    JSL_m1x0,AL_J48,    AND_m1x0,DS_24,     BIT_m1x0,D_23,      AND_m1x0,D_23,      ROL_m1x0,D_25,      AND_m1x0,DIL_26     
-    .long PLP_m1x0,PLP_m1x0,  AND_m1x0I,AND_m1x0I,ROLA_m1x0,REGA_12,  PLD_m1x0,PLD_m1x0,  BIT_m1x0,A_34,      AND_m1x0,A_34,      ROL_m1x0,A_36,      AND_m1x0,AL_45      
+    .long CLC_m1x0,CLC_m1x0,  ORA_m1x0,AY_34,     INCA_m1x0,INCA_m1x0,TCS_m1x0,TCS_m1x0,  TRB_m1x0,A_36,      ORA_m1x0,AX_34,     ASL_m1x0,AX_37,     ORA_m1x0,ALX_45     
+    .long JSR_m1x0A,JSR_m1x0A,AND_m1x0,DXI_26,    JSL_m1x0,JSL_m1x0,  AND_m1x0,DS_24,     BIT_m1x0,D_23,      AND_m1x0,D_23,      ROL_m1x0,D_25,      AND_m1x0,DIL_26     
+    .long PLP_m1x0,PLP_m1x0,  AND_m1x0I,AND_m1x0I,ROLA_m1x0,ROLA_m1x0,PLD_m1x0,PLD_m1x0,  BIT_m1x0,A_34,      AND_m1x0,A_34,      ROL_m1x0,A_36,      AND_m1x0,AL_45      
     .long BMI_m1x0,BMI_m1x0,  AND_m1x0,DIY_25,    AND_m1x0,DI_25,     AND_m1x0,DSIY_27,   BIT_m1x0,DX_24,     AND_m1x0,DX_24,     ROL_m1x0,DX_26,     AND_m1x0,DILY_26    
-    .long SEC_m1x0,SEC_m1x0,  AND_m1x0,AY_34,     DECA_m1x0,REGA_12,  TSC_m1x0,TSC_m1x0,  BIT_m1x0,AX_34,     AND_m1x0,AX_34,     ROL_m1x0,AX_37,     AND_m1x0,ALX_45     
+    .long SEC_m1x0,SEC_m1x0,  AND_m1x0,AY_34,     DECA_m1x0,DECA_m1x0,TSC_m1x0,TSC_m1x0,  BIT_m1x0,AX_34,     AND_m1x0,AX_34,     ROL_m1x0,AX_37,     AND_m1x0,ALX_45     
     .long RTI_m1x0,RTI_m1x0,  EOR_m1x0,DXI_26,    RES_m1x0,RES_m1x0,  EOR_m1x0,DS_24,     MVP_m1x0,MVP_m1x0,  EOR_m1x0,D_23,      LSR_m1x0,D_25,      EOR_m1x0,DIL_26     
-    .long PHA_m1x0,PHA_m1x0,  EOR_m1x0,IMM_m1,    LSRA_m1x0,REGA_12,  PHK_m1x0,PHK_m1x0,  JMP_m1x0,A_J33,     EOR_m1x0,A_34,      LSR_m1x0,A_36,      EOR_m1x0,AL_45      
+    .long PHA_m1x0,PHA_m1x0,  EOR_m1x0I,EOR_m1x0I,LSRA_m1x0,LSRA_m1x0,PHK_m1x0,PHK_m1x0,  JMP_m1x0,A_J33,     EOR_m1x0,A_34,      LSR_m1x0,A_36,      EOR_m1x0,AL_45      
     .long BVC_m1x0,BVC_m1x0,  EOR_m1x0,DIY_25,    EOR_m1x0,DI_25,     EOR_m1x0,DSIY_27,   MVN_m1x0,MVN_m1x0,  EOR_m1x0,DX_24,     LSR_m1x0,DX_26,     EOR_m1x0,DILY_26    
     .long CLI_m1x0,CLI_m1x0,  EOR_m1x0,AY_34,     PHY_m1x0,PHY_m1x0,  TCD_m1x0,TCD_m1x0,  JMP_m1x0,AL_J44,    EOR_m1x0,AX_34,     LSR_m1x0,AX_37,     EOR_m1x0,ALX_45     
     .long RTS_m1x0,RTS_m1x0,  ADC_m1x0,DXI_26,    PER_m1x0,PER_m1x0,  ADC_m1x0,DS_24,     STZ_m1x0,D_23,      ADC_m1x0,D_23,      ROR_m1x0,D_25,      ADC_m1x0,DIL_26     
-    .long PLA_m1x0,PLA_m1x0,  ADC_m1x0I,ADC_m1x0I,RORA_m1x0,REGA_12,  RTL_m1x0,RTL_m1x0,  JMP_m1x0,AI_J35,    ADC_m1x0,A_34,      ROR_m1x0,A_36,      ADC_m1x0,AL_45      
+    .long PLA_m1x0,PLA_m1x0,  ADC_m1x0I,ADC_m1x0I,RORA_m1x0,RORA_m1x0,RTL_m1x0,RTL_m1x0,  JMP_m1x0,AI_J35,    ADC_m1x0,A_34,      ROR_m1x0,A_36,      ADC_m1x0,AL_45      
     .long BVS_m1x0,BVS_m1x0,  ADC_m1x0,DIY_25,    ADC_m1x0,DI_25,     ADC_m1x0,DSIY_27,   STZ_m1x0,DX_24,     ADC_m1x0,DX_24,     ROR_m1x0,DX_26,     ADC_m1x0,DILY_26    
     .long SEI_m1x0,SEI_m1x0,  ADC_m1x0,AY_34,     PLY_m1x0,PLY_m1x0,  TDC_m1x0,TDC_m1x0,  JMP_m1x0,AXI_J36,   ADC_m1x0,AX_34,     ROR_m1x0,AX_37,     ADC_m1x0,ALX_45     
-    .long BRA_m1x0,BRA_m1x0,  STA_m1x0,DXI_26,    BRL_m1x0,RL_J33,    STA_m1x0,DS_24,     STY_m1x0,D_23,      STAD_m1x0,STAD_m1x0,STX_m1x0,D_23,      STA_m1x0,DIL_26     
+    .long BRA_m1x0,BRA_m1x0,  STA_m1x0,DXI_26,    BRL_m1x0,BRL_m1x0,  STA_m1x0,DS_24,     STY_m1x0,D_23,      STAD_m1x0,STAD_m1x0,STX_m1x0,D_23,      STA_m1x0,DIL_26     
     .long DEY_m1x0,DEY_m1x0,  BIT_m1x0I,BIT_m1x0I,TXA_m1x0,TXA_m1x0,  PHB_m1x0,PHB_m1x0,  STY_m1x0,A_34,      STA_m1x0,A_34,      STX_m1x0,A_34,      STA_m1x0,AL_45      
     .long BCC_m1x0,BCC_m1x0,  STA_m1x0,DIY_26,    STA_m1x0,DI_25,     STA_m1x0,DSIY_27,   STY_m1x0,DX_24,     STA_m1x0,DX_24,     STX_m1x0,DY_24,     STA_m1x0,DILY_26    
     .long TYA_m1x0,TYA_m1x0,  STA_m1x0,AY_35,     TXS_m1x0,TXS_m1x0,  TXY_m1x0,TXY_m1x0,  STZ_m1x0,A_34,      STA_m1x0,AX_35,     STZ_m1x0,AX_35,     STA_m1x0,ALX_45     
@@ -125,27 +125,27 @@ m1x0Decoder:
     .long BNE_m1x0,BNE_m1x0,  CMP_m1x0,DIY_25,    CMP_m1x0,DI_25,     CMP_m1x0,DSIY_27,   PEI_m1x0,PEI_m1x0,  CMP_m1x0,DX_24,     DEC_m1x0,DX_26,     CMP_m1x0,DILY_26    
     .long CLD_m1x0,CLD_m1x0,  CMP_m1x0,AY_34,     PHX_m1x0,PHX_m1x0,  STP_m1x0,STP_m1x0,  JML_m1x0,AIL_J36,   CMP_m1x0,AX_34,     DEC_m1x0,AX_37,     CMP_m1x0,ALX_45     
     .long CPX_m1x0I,CPX_m1x0I,SBC_m1x0,DXI_26,    SEP_m1x0,SEP_m1x0,  SBC_m1x0,DS_24,     CPX_m1x0,D_23,      SBC_m1x0,D_23,      INC_m1x0,D_25,      SBC_m1x0,DIL_26     
-    .long INX_m1x0,INX_m1x0,  SBC_m1x0,IMM_m1,    NOP_m1x0,NOP_m1x0,  XBA_m1x0,XBA_m1x0,  CPX_m1x0,A_34,      SBC_m1x0,A_34,      INC_m1x0,A_36,      SBC_m1x0,AL_45      
+    .long INX_m1x0,INX_m1x0,  SBC_m1x0I,SBC_m1x0I,NOP_m1x0,NOP_m1x0,  XBA_m1x0,XBA_m1x0,  CPX_m1x0,A_34,      SBC_m1x0,A_34,      INC_m1x0,A_36,      SBC_m1x0,AL_45      
     .long BEQ_m1x0,BEQ_m1x0,  SBC_m1x0,DIY_25,    SBC_m1x0,DI_25,     SBC_m1x0,DSIY_27,   PEA_m1x0,PEA_m1x0,  SBC_m1x0,DX_24,     INC_m1x0,DX_26,     SBC_m1x0,DILY_26    
-    .long SED_m1x0,SED_m1x0,  SBC_m1x0,AY_34,     PLX_m1x0,PLX_m1x0,  XCE_m1x0,XCE_m1x0,  JSR_m1x0,AXI_J36,   SBC_m1x0,AX_34,     INC_m1x0,AX_37,     SBC_m1x0,ALX_45     
+    .long SED_m1x0,SED_m1x0,  SBC_m1x0,AY_34,     PLX_m1x0,PLX_m1x0,  XCE_m1x0,XCE_m1x0,  JSR_m1x0I,JSR_m1x0I,SBC_m1x0,AX_34,     INC_m1x0,AX_37,     SBC_m1x0,ALX_45     
 m1x1Decoder:
     .long BRK_m1x1,S_28,      ORA_m1x1,DXI_26,    COP_m1x1,S_28,      ORA_m1x1,DS_24,     TSB_m1x1,D_25,      ORA_m1x1,D_23,      ASL_m1x1,D_25,      ORA_m1x1,DIL_26     
-    .long PHP_m1x1,PHP_m1x1,  ORA_m1x1,IMM_m1,    ASLA_m1x1,REGA_12,  PHD_m1x1,PHD_m1x1,  TSB_m1x1,A_36,      ORA_m1x1,A_34,      ASL_m1x1,A_36,      ORA_m1x1,AL_45      
+    .long PHP_m1x1,PHP_m1x1,  ORA_m1x1I,ORA_m1x1I,ASLA_m1x1,ASLA_m1x1,PHD_m1x1,PHD_m1x1,  TSB_m1x1,A_36,      ORA_m1x1,A_34,      ASL_m1x1,A_36,      ORA_m1x1,AL_45      
     .long BPL_m1x1,BPL_m1x1,  ORA_m1x1,DIY_25,    ORA_m1x1,DI_25,     ORA_m1x1,DSIY_27,   TRB_m1x1,D_25,      ORA_m1x1,DX_24,     ASL_m1x1,DX_26,     ORA_m1x1,DILY_26    
-    .long CLC_m1x1,CLC_m1x1,  ORA_m1x1,AY_34,     INCA_m1x1,REGA_12,  TCS_m1x1,TCS_m1x1,  TRB_m1x1,A_36,      ORA_m1x1,AX_34,     ASL_m1x1,AX_37,     ORA_m1x1,ALX_45     
-    .long JSR_m1x1,A_J36,     AND_m1x1,DXI_26,    JSL_m1x1,AL_J48,    AND_m1x1,DS_24,     BIT_m1x1,D_23,      AND_m1x1,D_23,      ROL_m1x1,D_25,      AND_m1x1,DIL_26     
-    .long PLP_m1x1,PLP_m1x1,  AND_m1x1I,AND_m1x1I,ROLA_m1x1,REGA_12,  PLD_m1x1,PLD_m1x1,  BIT_m1x1,A_34,      AND_m1x1,A_34,      ROL_m1x1,A_36,      AND_m1x1,AL_45      
+    .long CLC_m1x1,CLC_m1x1,  ORA_m1x1,AY_34,     INCA_m1x1,INCA_m1x1,TCS_m1x1,TCS_m1x1,  TRB_m1x1,A_36,      ORA_m1x1,AX_34,     ASL_m1x1,AX_37,     ORA_m1x1,ALX_45     
+    .long JSR_m1x1A,JSR_m1x1A,AND_m1x1,DXI_26,    JSL_m1x1,JSL_m1x1,  AND_m1x1,DS_24,     BIT_m1x1,D_23,      AND_m1x1,D_23,      ROL_m1x1,D_25,      AND_m1x1,DIL_26     
+    .long PLP_m1x1,PLP_m1x1,  AND_m1x1I,AND_m1x1I,ROLA_m1x1,ROLA_m1x1,PLD_m1x1,PLD_m1x1,  BIT_m1x1,A_34,      AND_m1x1,A_34,      ROL_m1x1,A_36,      AND_m1x1,AL_45      
     .long BMI_m1x1,BMI_m1x1,  AND_m1x1,DIY_25,    AND_m1x1,DI_25,     AND_m1x1,DSIY_27,   BIT_m1x1,DX_24,     AND_m1x1,DX_24,     ROL_m1x1,DX_26,     AND_m1x1,DILY_26    
-    .long SEC_m1x1,SEC_m1x1,  AND_m1x1,AY_34,     DECA_m1x1,REGA_12,  TSC_m1x1,TSC_m1x1,  BIT_m1x1,AX_34,     AND_m1x1,AX_34,     ROL_m1x1,AX_37,     AND_m1x1,ALX_45     
+    .long SEC_m1x1,SEC_m1x1,  AND_m1x1,AY_34,     DECA_m1x1,DECA_m1x1,TSC_m1x1,TSC_m1x1,  BIT_m1x1,AX_34,     AND_m1x1,AX_34,     ROL_m1x1,AX_37,     AND_m1x1,ALX_45     
     .long RTI_m1x1,RTI_m1x1,  EOR_m1x1,DXI_26,    RES_m1x1,RES_m1x1,  EOR_m1x1,DS_24,     MVP_m1x1,MVP_m1x1,  EOR_m1x1,D_23,      LSR_m1x1,D_25,      EOR_m1x1,DIL_26     
-    .long PHA_m1x1,PHA_m1x1,  EOR_m1x1,IMM_m1,    LSRA_m1x1,REGA_12,  PHK_m1x1,PHK_m1x1,  JMP_m1x1,A_J33,     EOR_m1x1,A_34,      LSR_m1x1,A_36,      EOR_m1x1,AL_45      
+    .long PHA_m1x1,PHA_m1x1,  EOR_m1x1I,EOR_m1x1I,LSRA_m1x1,LSRA_m1x1,PHK_m1x1,PHK_m1x1,  JMP_m1x1,A_J33,     EOR_m1x1,A_34,      LSR_m1x1,A_36,      EOR_m1x1,AL_45      
     .long BVC_m1x1,BVC_m1x1,  EOR_m1x1,DIY_25,    EOR_m1x1,DI_25,     EOR_m1x1,DSIY_27,   MVN_m1x1,MVN_m1x1,  EOR_m1x1,DX_24,     LSR_m1x1,DX_26,     EOR_m1x1,DILY_26    
     .long CLI_m1x1,CLI_m1x1,  EOR_m1x1,AY_34,     PHY_m1x1,PHY_m1x1,  TCD_m1x1,TCD_m1x1,  JMP_m1x1,AL_J44,    EOR_m1x1,AX_34,     LSR_m1x1,AX_37,     EOR_m1x1,ALX_45     
     .long RTS_m1x1,RTS_m1x1,  ADC_m1x1,DXI_26,    PER_m1x1,PER_m1x1,  ADC_m1x1,DS_24,     STZ_m1x1,D_23,      ADC_m1x1,D_23,      ROR_m1x1,D_25,      ADC_m1x1,DIL_26     
-    .long PLA_m1x1,PLA_m1x1,  ADC_m1x1I,ADC_m1x1I,RORA_m1x1,REGA_12,  RTL_m1x1,RTL_m1x1,  JMP_m1x1,AI_J35,    ADC_m1x1,A_34,      ROR_m1x1,A_36,      ADC_m1x1,AL_45      
+    .long PLA_m1x1,PLA_m1x1,  ADC_m1x1I,ADC_m1x1I,RORA_m1x1,RORA_m1x1,RTL_m1x1,RTL_m1x1,  JMP_m1x1,AI_J35,    ADC_m1x1,A_34,      ROR_m1x1,A_36,      ADC_m1x1,AL_45      
     .long BVS_m1x1,BVS_m1x1,  ADC_m1x1,DIY_25,    ADC_m1x1,DI_25,     ADC_m1x1,DSIY_27,   STZ_m1x1,DX_24,     ADC_m1x1,DX_24,     ROR_m1x1,DX_26,     ADC_m1x1,DILY_26    
     .long SEI_m1x1,SEI_m1x1,  ADC_m1x1,AY_34,     PLY_m1x1,PLY_m1x1,  TDC_m1x1,TDC_m1x1,  JMP_m1x1,AXI_J36,   ADC_m1x1,AX_34,     ROR_m1x1,AX_37,     ADC_m1x1,ALX_45     
-    .long BRA_m1x1,BRA_m1x1,  STA_m1x1,DXI_26,    BRL_m1x1,RL_J33,    STA_m1x1,DS_24,     STY_m1x1,D_23,      STAD_m1x1,STAD_m1x1,STX_m1x1,D_23,      STA_m1x1,DIL_26     
+    .long BRA_m1x1,BRA_m1x1,  STA_m1x1,DXI_26,    BRL_m1x1,BRL_m1x1,  STA_m1x1,DS_24,     STY_m1x1,D_23,      STAD_m1x1,STAD_m1x1,STX_m1x1,D_23,      STA_m1x1,DIL_26     
     .long DEY_m1x1,DEY_m1x1,  BIT_m1x1I,BIT_m1x1I,TXA_m1x1,TXA_m1x1,  PHB_m1x1,PHB_m1x1,  STY_m1x1,A_34,      STA_m1x1,A_34,      STX_m1x1,A_34,      STA_m1x1,AL_45      
     .long BCC_m1x1,BCC_m1x1,  STA_m1x1,DIY_26,    STA_m1x1,DI_25,     STA_m1x1,DSIY_27,   STY_m1x1,DX_24,     STA_m1x1,DX_24,     STX_m1x1,DY_24,     STA_m1x1,DILY_26    
     .long TYA_m1x1,TYA_m1x1,  STA_m1x1,AY_35,     TXS_m1x1,TXS_m1x1,  TXY_m1x1,TXY_m1x1,  STZ_m1x1,A_34,      STA_m1x1,AX_35,     STZ_m1x1,AX_35,     STA_m1x1,ALX_45     
@@ -158,9 +158,9 @@ m1x1Decoder:
     .long BNE_m1x1,BNE_m1x1,  CMP_m1x1,DIY_25,    CMP_m1x1,DI_25,     CMP_m1x1,DSIY_27,   PEI_m1x1,PEI_m1x1,  CMP_m1x1,DX_24,     DEC_m1x1,DX_26,     CMP_m1x1,DILY_26    
     .long CLD_m1x1,CLD_m1x1,  CMP_m1x1,AY_34,     PHX_m1x1,PHX_m1x1,  STP_m1x1,STP_m1x1,  JML_m1x1,AIL_J36,   CMP_m1x1,AX_34,     DEC_m1x1,AX_37,     CMP_m1x1,ALX_45     
     .long CPX_m1x1I,CPX_m1x1I,SBC_m1x1,DXI_26,    SEP_m1x1,SEP_m1x1,  SBC_m1x1,DS_24,     CPX_m1x1,D_23,      SBC_m1x1,D_23,      INC_m1x1,D_25,      SBC_m1x1,DIL_26     
-    .long INX_m1x1,INX_m1x1,  SBC_m1x1,IMM_m1,    NOP_m1x1,NOP_m1x1,  XBA_m1x1,XBA_m1x1,  CPX_m1x1,A_34,      SBC_m1x1,A_34,      INC_m1x1,A_36,      SBC_m1x1,AL_45      
+    .long INX_m1x1,INX_m1x1,  SBC_m1x1I,SBC_m1x1I,NOP_m1x1,NOP_m1x1,  XBA_m1x1,XBA_m1x1,  CPX_m1x1,A_34,      SBC_m1x1,A_34,      INC_m1x1,A_36,      SBC_m1x1,AL_45      
     .long BEQ_m1x1,BEQ_m1x1,  SBC_m1x1,DIY_25,    SBC_m1x1,DI_25,     SBC_m1x1,DSIY_27,   PEA_m1x1,PEA_m1x1,  SBC_m1x1,DX_24,     INC_m1x1,DX_26,     SBC_m1x1,DILY_26    
-    .long SED_m1x1,SED_m1x1,  SBC_m1x1,AY_34,     PLX_m1x1,PLX_m1x1,  XCE_m1x1,XCE_m1x1,  JSR_m1x1,AXI_J36,   SBC_m1x1,AX_34,     INC_m1x1,AX_37,     SBC_m1x1,ALX_45     
+    .long SED_m1x1,SED_m1x1,  SBC_m1x1,AY_34,     PLX_m1x1,PLX_m1x1,  XCE_m1x1,XCE_m1x1,  JSR_m1x1I,JSR_m1x1I,SBC_m1x1,AX_34,     INC_m1x1,AX_37,     SBC_m1x1,ALX_45     
 
 
 
@@ -259,7 +259,6 @@ A_34      :  Translate Absolute,3,4
 A_36      :  Translate Absolute,3,6
 
 A_J33     :  Translate AbsolutePC,0,3
-A_J36     :  Translate AbsolutePC,0,6
 
 AI_J35    :  Translate AbsoluteIndirectPC,0,5
 AIL_J36   :  Translate AbsoluteIndirectLongPC,0,6
@@ -267,7 +266,6 @@ AIL_J36   :  Translate AbsoluteIndirectLongPC,0,6
 AL_45     :  Translate AbsoluteLong,4,5
 
 AL_J44    :  Translate AbsoluteLongPC,0,4           @ JML
-AL_J48    :  Translate AbsoluteLongPC,0,8           @ JSL
 
 ALX_45    :  Translate AbsoluteLongIndexedX,4,5
 
@@ -302,16 +300,7 @@ DXI_26    :  Translate DPIndexedXIndirect,2,6
 DS_24     :  Translate StackRelative,2,4
 DSIY_27   :  Translate StackRelativeIndirectIndexedY,2,7
 
-IMM_m1    :  
-IMM_x1    :  Translate Immediate,2,2
 
-IMM_m0    :  
-IMM_x0    :  Translate Immediate,3,2
-
-R_22      :  Translate None,2,2
-REGA_12   :  Translate None,1,2
-
-RL_J33    :  Translate NonePC,0,3
 S_28      :  Translate None,2,8
 
 
@@ -322,6 +311,7 @@ S_28      :  Translate None,2,8
 @=========================================================================    
 
 OpADCDCode:     OpADCD      NA, 0, 0
+OpSBCDCode:     OpSBCD      NA, 0, 0
 
 
 @-------------------------------------------------------------------------
@@ -374,7 +364,7 @@ AND_m1x0:   AND_m1x1:   OpAND   M1, 0, 0
 AND_m0x0I:  AND_m0x1I:  OpAND   M0IMM, 3, 2
 AND_m1x0I:  AND_m1x1I:  OpAND   M1IMM, 2, 2
 
-ASLA_m0x0:  ASLA_m0x1:  ASLA_m1x0:  ASLA_m1x1:  OpASLA  0,  0, 0
+ASLA_m0x0:  ASLA_m0x1:  ASLA_m1x0:  ASLA_m1x1:  OpASLA  0,  1, 2
 ASL_m0x0:   ASL_m0x1:   OpASL   M0, 0, 0
 ASL_m1x0:   ASL_m1x1:   OpASL   M1, 0, 0
 
@@ -384,8 +374,8 @@ BIT_m1x0:   BIT_m1x1:   OpBIT   M1, 0, 0
 BIT_m0x0I:  BIT_m0x1I:  OpBIT   M0IMM, 3, 2
 BIT_m1x0I:  BIT_m1x1I:  OpBIT   M1IMM, 2, 2
 
-DECA_m0x0:  DECA_m0x1:  OpDEA   M0, 0, 0
-DECA_m1x0:  DECA_m1x1:  OpDEA   M1, 0, 0
+DECA_m0x0:  DECA_m0x1:  OpDEA   M0, 1, 2
+DECA_m1x0:  DECA_m1x1:  OpDEA   M1, 1, 2
 
 DEC_m0x0:   DEC_m0x1:   OpDEC   M0, 0, 0
 DEC_m1x0:   DEC_m1x1:   OpDEC   M1, 0, 0
@@ -399,11 +389,14 @@ DEY_m0x1:   DEY_m1x1:   OpDEY   X1, 1, 2
 EOR_m0x0:   EOR_m0x1:   OpEOR   M0, 0, 0
 EOR_m1x0:   EOR_m1x1:   OpEOR   M1, 0, 0
 
+EOR_m0x0I:   EOR_m0x1I: OpEOR   M0IMM, 0, 0
+EOR_m1x0I:   EOR_m1x1I: OpEOR   M1IMM, 0, 0
+
 INC_m0x0:   INC_m0x1:   OpINC   M0, 0, 0
 INC_m1x0:   INC_m1x1:   OpINC   M1, 0, 0
 
-INCA_m0x0:  INCA_m0x1:  OpINA   M0, 0, 0
-INCA_m1x0:  INCA_m1x1:  OpINA   M1, 0, 0
+INCA_m0x0:  INCA_m0x1:  OpINA   M0, 1, 2
+INCA_m1x0:  INCA_m1x1:  OpINA   M1, 1, 2
 
 INX_m0x0:   INX_m1x0:   OpINX   X0, 1, 2
 INX_m0x1:   INX_m1x1:   OpINX   X1, 1, 2
@@ -411,8 +404,8 @@ INX_m0x1:   INX_m1x1:   OpINX   X1, 1, 2
 INY_m0x0:   INY_m1x0:   OpINY   X0, 1, 2
 INY_m0x1:   INY_m1x1:   OpINY   X1, 1, 2
 
-LSRA_m0x0:  LSRA_m0x1:  OpLSRA  M0, 0, 0
-LSRA_m1x0:  LSRA_m1x1:  OpLSRA  M1, 0, 0
+LSRA_m0x0:  LSRA_m0x1:  OpLSRA  M0, 1, 2
+LSRA_m1x0:  LSRA_m1x1:  OpLSRA  M1, 1, 2
 
 LSR_m0x0:   LSR_m0x1:   OpLSR   M0, 0, 0
 LSR_m1x0:   LSR_m1x1:   OpLSR   M1, 0, 0
@@ -420,20 +413,26 @@ LSR_m1x0:   LSR_m1x1:   OpLSR   M1, 0, 0
 ORA_m0x0:   ORA_m0x1:   OpORA   M0, 0, 0
 ORA_m1x0:   ORA_m1x1:   OpORA   M1, 0, 0
 
-ROLA_m0x0:  ROLA_m0x1:  OpROLA  M0, 0, 0
-ROLA_m1x0:  ROLA_m1x1:  OpROLA  M1, 0, 0
+ORA_m0x0I:   ORA_m0x1I: OpORA   M0IMM, 0, 0
+ORA_m1x0I:   ORA_m1x1I: OpORA   M1IMM, 0, 0
+
+ROLA_m0x0:  ROLA_m0x1:  OpROLA  M0, 1, 2
+ROLA_m1x0:  ROLA_m1x1:  OpROLA  M1, 1, 2
 
 ROL_m0x0:   ROL_m0x1:   OpROL   M0, 0, 0
 ROL_m1x0:   ROL_m1x1:   OpROL   M1, 0, 0
 
-RORA_m0x0:  RORA_m0x1:  OpRORA  M0, 0, 0
-RORA_m1x0:  RORA_m1x1:  OpRORA  M1, 0, 0
+RORA_m0x0:  RORA_m0x1:  OpRORA  M0, 1, 2
+RORA_m1x0:  RORA_m1x1:  OpRORA  M1, 1, 2
 
 ROR_m0x0:   ROR_m0x1:   OpROR   M0, 0, 0
 ROR_m1x0:   ROR_m1x1:   OpROR   M1, 0, 0
 
 SBC_m0x0:   SBC_m0x1:   OpSBC   M0, 0, 0
 SBC_m1x0:   SBC_m1x1:   OpSBC   M1, 0, 0
+
+SBC_m0x0I:  SBC_m0x1I:  OpSBC   M0IMM, 0, 0
+SBC_m1x0I:  SBC_m1x1I:  OpSBC   M1IMM, 0, 0
 
 TRB_m0x0:   TRB_m0x1:   OpTRB   M0, 0, 0
 TRB_m1x0:   TRB_m1x1:   OpTRB   M1, 0, 0
@@ -665,6 +664,7 @@ XCE_m0x0:   XCE_m0x1:   XCE_m1x0:   XCE_m1x1:   OpXCE   NA, 1, 2
 
 SEP_m0x0:   SEP_m0x1:   SEP_m1x0:   SEP_m1x1:   OpSEP   NA, 2, 3
 REP_m0x0:   REP_m0x1:   REP_m1x0:   REP_m1x1:   OpREP   NA, 2, 3
+
     .ltorg
 
 
@@ -707,7 +707,7 @@ RTI_m0x0:   RTI_m0x1:   RTI_m1x0:   RTI_m1x1:   OpRTI   NA, 0, 7
 RTL_m0x0:   RTL_m0x1:   RTL_m1x0:   RTL_m1x1:   OpRTL   NA, 0, 6
 RTS_m0x0:   RTS_m0x1:   RTS_m1x0:   RTS_m1x1:   OpRTS   NA, 0, 6
 
-BRL_m0x0:   BRL_m0x1:   BRL_m1x0:   BRL_m1x1:   OpBRL   NA, 3, 0
+BRL_m0x0:   BRL_m0x1:   BRL_m1x0:   BRL_m1x1:   OpBRL   NA, 3, 3
 
 BRA_m0x0:   BRA_m0x1:   BRA_m1x0:   BRA_m1x1:   OpBRA   NA, 2, 2
 BCC_m0x0:   BCC_m0x1:   BCC_m1x0:   BCC_m1x1:   OpBR    SnesFlagC, 0, 2, 2
@@ -722,8 +722,25 @@ BMI_m0x0:   BMI_m0x1:   BMI_m1x0:   BMI_m1x1:   OpBR    SnesFlagN, 1, 2, 2
 JMP_m0x0:   JMP_m0x1:   JMP_m1x0:   JMP_m1x1:   OpJMP   NA, 0, 0
 JML_m0x0:   JML_m0x1:   JML_m1x0:   JML_m1x1:   OpJMP   NA, 0, 0
 
-JSL_m0x0:   JSL_m0x1:   JSL_m1x0:   JSL_m1x1:   OpJSR   AbsoluteLongPC, 4, 0
-JSR_m0x0:   JSR_m0x1:   JSR_m1x0:   JSR_m1x1:   OpJSR   NA, 3, 0
+JSL_m0x0:   JSL_m0x1:   JSL_m1x0:   JSL_m1x1:   
+    @ version 0.25 optimization
+    @
+    Translate AbsoluteLongPC, 0, 0, 0
+    OpJSR   AbsoluteLongPC, 4, 8
+
+JSR_m0x0A:   JSR_m0x1A:   JSR_m1x0A:   JSR_m1x1A:   
+    @ version 0.25 optimization
+    @
+    Translate AbsolutePC, 0, 0, 0 
+    OpJSR   NA, 3, 6
+
+JSR_m0x0I:   JSR_m0x1I:   JSR_m1x0I:   JSR_m1x1I:   
+    @ version 0.25 optimization
+    @
+    Translate AbsoluteIndexedXIndirectPC, 0, 0, 0 
+    OpJSR   NA, 3, 6
+
+@@A_J36     :  Translate AbsolutePC,0,6
 
 SnesPCOffset:       .long   0
 
@@ -740,11 +757,10 @@ BRK_m0x0:   BRK_m0x1:   BRK_m1x0:   BRK_m1x1:   OpBRK   NA, 0, 0
 @ specially added instructions
 @-------------------------------------------------------------------------
 
-STP_m0x0:   STP_m0x1:   STP_m1x0:   STP_m1x1:   OpSTP   NA, 2, 0
-RES_m0x0:   RES_m0x1:   RES_m1x0:   RES_m1x1:   OpRES   NA, 2, 0
+STP_m0x0:   STP_m0x1:   STP_m1x0:   STP_m1x1:   OpSTP   NA, 0, 0
+RES_m0x0:   RES_m0x1:   RES_m1x0:   RES_m1x1:   OpRES   NA, 0, 0
 NOP_m0x0:   NOP_m0x1:   NOP_m1x0:   NOP_m1x1:   OpNOP   NA, 1, 2
 
-    
 
 @=========================================================================
 @ CPU loop
@@ -851,9 +867,16 @@ Fetch:
     OpcodeFetch
 
 ScanlineEnd:
-    @ End of one scanline
-    @
-    blne    ScanlineEnd_CopyBGOFS       @ self-modifying code here, 
+    @====================================
+    @ SNES start of scanline
+    @ Occurs once per SNES scanline
+    @ (or 262 times per frame)
+    @====================================
+ScanlineEnd_HDMA:
+    bl      HDMA_Start                  @ self-modifying, either b ScanlineEnd_PerformHDMA or nop
+
+ScanlineEnd_Copy:    
+    bl      ScanlineEnd_CopyBGOFS       @ self-modifying code here, 
                                         @ either blne ScanlineEnd_CopyBGOFS, or nop
                                         @ set to "blne ScanlineEnd_CopyBGOFS" by the 210D-2114 registers
 
@@ -863,9 +886,19 @@ ScanlineEnd:
     str     r1, VerticalCount
     str     r1, bgVerticalCount
 
-    ldr     r2, vBlankScan
-    cmp     r1, r2
+ScanlineEnd_VBlankCheck:
+    cmp     r1, #(-262+SCANLINE_BLANK)  @ self-modifying
 	bne		IRQJump1
+
+    @====================================
+    @ SNES V-BLank
+    @ Occurs once per SNES frame
+    @====================================
+    @---------------------------------
+    @ Disable HDMA
+    @---------------------------------
+    mov     r0, #0
+    str     r0, ScanlineEnd_HDMA
 
     @---------------------------------
     @ sync to gba's vblank
@@ -915,6 +948,10 @@ Scanline_Cycle1:
     ScanlineEndFetch
 
 Scanline0:
+    @====================================
+    @ SNES start of frame
+    @ Occurs once per SNES frame
+    @====================================
     sub     r1, r1, #255
     sub     r1, r1, #7                          @ wrap to -262
     str     r1, VerticalCount
@@ -925,6 +962,8 @@ Scanline0:
     @ render the screen
     @---------------------------------
 	bl      snesRenderScreen
+Scanline0_FrameInit:
+	bl      HDMA_FrameInit
 	
 IRQJump2:
     ldr     pc, IRQJumpAddress                  @ self-modifying, (ldr pc,IRQJumpAddress or NOP)
@@ -945,47 +984,37 @@ Scanline_Cycle3:
     ScanlineEndFetch
 
 IRQJumpAddress:
-    .word       0
+    .word   0
 IRQJumpCode:
-    .word   0,0
+    .word   0, 0
 
     .ltorg
-    
+
 ScanlineEnd_CopyBGOFS:
     mov     r0, #0
-    str     r0, ScanlineEnd                 @ 'clear' the 'dirty flag'
+    str     r0, ScanlineEnd_Copy            @ 'clear' the 'dirty flag'
     
-    ldr     r1, bgVerticalCount             @ r1 = SNES vertical count
+    ldr     r0, bgVerticalCount             @ r0 = SNES vertical count
     ldr     r2, =(bgYOffset+262)
-    ldrb    r1, [r2, r1]                    @ r1 = translated GBA vertical count
+    ldrb    r1, [r2, r0]                    @ r1 = translated GBA vertical count
+    mov     r1, r1, lsl #1
     
     ldr     r2, =bgOffset
-    add     r2, r2, r1, lsl #1
     ldr     r0, bgOffsetCurrFrame
-    strh    r0, [r2]
-    
-    ldr     r2, =bgOffsetRAMBase            @ r3 = BG offset in EWRAM
-    add     r2, r2, r1, lsl #4
-    ldr     r1, =regBG1HOffset              @ r2 = BG offset in IWRAM
-    
-    @ copy 8 times, for all V/H of 4 backgrounds (can we use DMA?)
+    strh    r0, [r2, r1]
+
+    @ version 0.25 fix.
     @
-    ldrh    r0, [r1], #2
-    strh    r0, [r2], #2
-    ldrh    r0, [r1], #2
-    strh    r0, [r2], #2
-    ldrh    r0, [r1], #2
-    strh    r0, [r2], #2
-    ldrh    r0, [r1], #2
-    strh    r0, [r2], #2
-    ldrh    r0, [r1], #2
-    strh    r0, [r2], #2
-    ldrh    r0, [r1], #2
-    strh    r0, [r2], #2
-    ldrh    r0, [r1], #2
-    strh    r0, [r2], #2
-    ldrh    r0, [r1], #2
-    strh    r0, [r2], #2
+    @ Use DMAs Channel 2 for 
+    @ copying of mid-frame BG positions
+    @
+    ldr     r0, =0x40000CC
+    ldr     r2, =bgOffsetRAMBase    @ DMA2 Dest Address
+    add     r2, r2, r1, lsl #3
+    str     r2, [r0], #6
+    mov     r2, #(1<<15)+(1<<10)    @ DMA2 Control (32-bit transfer, start immediately)
+    strh    r2, [r0], #2
+    
     bx      lr
 
 
@@ -999,10 +1028,13 @@ VerticalCount:      .word   0
 bgVerticalCount:    .word   0
 vBlankScan:         .word   SCANLINE_BLANK-262
 
+
 @-------------------------------------------------------------------------
 @ stores the branch code at ScanlineEnd
 @-------------------------------------------------------------------------
 ScanlineEnd_Code:   .word   0
+HDMA_Code:          .word   0
+HDMAFrameInit_Code: .word   0
 
 
     .ltorg

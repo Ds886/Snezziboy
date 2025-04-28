@@ -1,6 +1,6 @@
 /*
 -------------------------------------------------------------------
-Snezziboy v0.24
+Snezziboy v0.25
 
 Copyright (C) 2006 bubble2k
 
@@ -78,23 +78,6 @@ _start:
     .ascii  "BOOTSTRP"
     .align  4
 Start:
-    @ copy iwram code
-    ldr     r2, =0x03000000
-    ldr     r0, =ROMEnd
-    add     r0, r0, #0x100
-    bic     r0, r0, #0xFF
-    ldr     r1, =IWRAMEnd
-    add     r1, r1, #0x3
-    bic     r1, r1, #0x3
-    sub     r1, r1, r0
-    add     r1, r1, #0x3
-    bic     r1, r1, #0x3
-
-copyiwram:
-    ldmia   r0!, {r3,r4,r5,r6}
-    stmia   r2!, {r3,r4,r5,r6}
-    subs    r1, r1, #16
-    bpl     copyiwram
     
     ldr     pc, =HardReset
     .ltorg
@@ -118,3 +101,4 @@ IWRAMEnd:
     .align      4
     .ascii      ".IWRAMEND"
     .align      4
+

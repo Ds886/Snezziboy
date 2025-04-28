@@ -1,3 +1,45 @@
+v0.25
+-----
+
+Fixes and Features:
+- Fixed a bug with the reading of registers $2137/$213C/$213D
+  (Final Fantasy Mystic Quest is able to proceed to the title screen)
+- Fixed a critical bug with the MVN/MVP instructions to handle the A register
+  correctly in 8-bit mode.
+- Fixed a DMA bug so that the incrementing of the source address does not
+  affect the address bank.
+  (Final Fantasy Mystic no longer crashes and now seems playable)
+- Fixed a bug with the DMA transfer to correctly increment the source address 
+  depending on the DMA increment mode.
+  (Secret of Mana no longer crashes before the first dungeon)
+- Fixed a bug with the RESET function that causes backgrounds remain 
+  stationary after using the configuration's RESET option.
+- Fixed the SBC instruction to take care of decimal mode subtraction 
+  (uses modified code from SNES Advance)
+  (Zombies ate my Neighbors is now playable)
+- Fixed Mode 7 where there was once a band appearing at the top of the screen.
+- Fixed (partially) SNES additive transparencies.
+- Implemented Mode 7 wraparound based on register $211A.
+
+
+HDMA:
+- Implemented partial HDMA for background scrolling positions
+  (Donkey Kong 3, first level moves as expected)
+  (Street Fighter 2 background moves as expected)
+  (Castlevania X first level background effects visible)
+  (HDMA is slow on the GBA and is expected)
+- Implemented new option to enable/disable HDMA
+  (for games that don't necessarily require it)
+
+Optimizations:
+- Made slight optimizations to instructions that operate on the A register,
+  and certain jump instructions
+- Made major optimizations to all instructions to remove instruction to add to 
+  SnesPC register 
+  (Credit to Gladius for the suggestion; most games should experience 
+  a slight but notable increase in speed)
+
+
 v0.24 (Quick Fix Release)
 -----
 
