@@ -1,3 +1,10 @@
+v0.22a
+-----
+
+- Included the snezzidebugger.exe into the package. 
+  (Otherwise no changes to the Snezziboy source code and binaries)
+
+
 v0.22
 ----
 

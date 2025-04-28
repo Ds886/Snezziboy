@@ -7,8 +7,9 @@ Contents
 2. About Snezziboy
 3. File Manifest
 4. How to use
-5. Patch Data
-6. Credits
+5. Configuration Menu
+6. Patch Data
+7. Credits
 
 
 1. Licensing
@@ -113,13 +114,83 @@ The following three files must be in the same folder:
    in your flash cartridge manual, load it up into gameboy and run it.
 
    (For Supercard users, please run the .gba file through the Supercard
-   patcher before playing. I recommend turning all options except 
-   Compress off).
+   patcher before playing. I recommend turning all options off except 
+   "Compress").
 
 5. During the game, use (L+R+start) to access the configuration menu.
 
 
-5. Patch Data
+6. Configuration Menu
+~~~~~~~~~~~~~~~~~~~~~
+
+The configuration menu has the following options:
+
+   a. BG0         The priority of the first background layer.
+                  P0 - front-most
+                  P1 - behind P0
+                  P2 - behind P1
+                  P3 - rear-most
+
+   b. BG1         The priority of the second background layer. 
+                  (options are the same as BG0)
+
+   c. BG2         The priority of the second background layer. 
+                  (options are the same as BG0)
+
+   d. BG3         The priority of the second background layer. 
+                  (options are the same as BG0)
+
+   e. CTRL        This indicates the CTRL key that can be used
+                  to input the additional SNES X/Y keys. When used
+                  in combination with the GBA A/B keys, we can input
+                  the full X/Y/A/B keys into the game.
+
+                  START  - use the start button as the CTRL key
+                  SELECT - use the start button as the CTRL key
+                  L      - use the start button as the CTRL key
+                  R      - use the start button as the CTRL key
+
+                  If you are still confused, think of it as a 
+                  "SHIFT" key that allows you to shift button A 
+                  to button X, for example.
+
+   f. BUTTON A    This indicates the key(-combination) to you should
+                  press in order to input the SNES button A.
+
+                  A      - the GBA A button
+                  B      - the GBA B button
+                  CTRL A - the GBA A button + the CTRL key above
+                  CTRL B - the GBA B button + the CTRL key above
+
+   g. BUTTON B    (same as button A)
+
+   h. BUTTON X    (same as button A)
+
+   i. BUTTON Y    (same as button A)
+
+   j. BACKDROP    This allows the SNES game to display a backdrop 
+                  color. Not all games like this option, and may 
+                  exhibit flickers in the background, due to the
+                  difference in the way the SNES and the GBA 
+                  handles backdrop colors in hardware.
+
+                  YES    - yes, show backdrop color
+                  NO     - no, do not show backdrop color
+
+                  So far only Super Mario World is known to 
+                  produce the effect as intended with the backdrop
+                  set to YES.
+
+    y. RETURN TO GAME
+                  Returns to the game. Pressing start in the 
+                  configuration screen also returns you to the game
+
+    z. RESET GAME
+                  Does a "hard reset" on the emulator and returns
+                  the game to the start. 
+    
+
+6. Patch Data
 ~~~~~~~~~~~~~~~~~~~~~
 
 The Patch Data file (snezzi.dat) contains a list of SNES ROMs and patch
@@ -150,7 +221,7 @@ If the checksum of your SNES ROM does not match that in the patch data
 file, the Snezziboy Builder will not patch it. 
 
 
-6. Credits
+7. Credits
 ~~~~~~~~~~~~~~~~~~~~~
 
 Flubba, Loopy		For their bold attempt in SNES emulation on the GBA.
