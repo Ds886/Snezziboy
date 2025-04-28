@@ -1,8 +1,55 @@
-v0.22a
+v0.23
 -----
 
-- Included the snezzidebugger.exe into the package. 
-  (Otherwise no changes to the Snezziboy source code and binaries)
+Fixes and Features:
+
+- Fixed a critical bug with the register reads and writes (might be slower)
+- Improved cycle counting (again) for block move and DMA operations.
+- Added feature to handle mid-frame change of background offsets.
+  (Able to see water in Super Mario World,
+  Able to see scrolling clouds in Super Mario All Stars: Super Mario Bros, 
+  Able to see fixed status panel in Super Mario All Stars: Super Mario Bros 3, 
+  Able to see scrolling name entry in Zelda: A Link to the Past)
+- Fixed reading register $4212 to indicate auto-joypad read status.
+- Fixed writing register $4016 to reset only when the correct bit is set.
+- Fixed joypad registers to send joypad input only from the first controller.
+- Fixed HiROM mapping.
+- Added Mode 20/21 ROM Access Speed.
+- Fixed a bug with the INC/DEC opcode that was previously returning the wrong
+  flags.
+  (This fixes Super Mario Bros 2's glitch where the character suddenly warps to the
+  top of the screen)
+- Fixed messed up colors when in 256-color palettes.
+- Fixed fading to use always the brightest fade color per frame
+- Slightly improved VRAM allocation for background graphics
+- Implemented Mode 7 Graphics
+
+
+- Added more configuration options:
+  o FORCED BG MODE
+      AUTO, MODE 1, MODE 2,... MODE 7
+  o VRAM BG ALLOC
+      SMART - Don't allocate for disabled BGs 
+              may see less garbled graphics,
+              slow refresh on every enabling/disabling/flicker of BGs
+      FAST  - Allocate for disabled BGs
+              may see more garbled graphics
+              fast flickering of BGs (needed by games like Megaman 7)
+  o VRAM OBJ ALLOC
+      SHARED - Shared with BGs (may result in less space for BG graphics)
+      EXCLUSIVE - Not shared with BGs (allows more space for BG graphics)
+
+- Added Quick Configuration Feature:
+  o L+R+SELECT+UP: Cycle through the following BG Priority Sets
+      set 1 = (P1, P2, P3, P3)
+      set 2 = (P2, P1, P3, P3)
+      set 3 = (P0, P1, P2, P3)
+      set 4 = (P1, P0, P2, P3)
+
+  o L+R+SELECT+DOWN: Cycle through the FORCED BG MODEs
+      opt 0 = as required by game
+      opt 1-7 = the respective modes
+
 
 
 v0.22

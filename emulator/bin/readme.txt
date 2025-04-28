@@ -181,6 +181,25 @@ The configuration menu has the following options:
                   produce the effect as intended with the backdrop
                   set to YES.
 
+    k. BG ENABLE  This allows the VRAM allocation for graphics to
+                  switch between two algorithms when backgrounds
+                  are enabled / disabled.
+                  FAST  - Fast, but no refresh of tiles. May cause
+                          certain graphical glitches.
+                  SMART - (Slightly) Smarter, but slow since it
+                          refreshes everytime the game 
+                          enables/disabless the BG.
+
+    l. BG FORCED MODE
+                  Forces the game to display the graphics in the
+                  specific SNES mode. This may be needed by certain
+                  games that switch between two modes in the same 
+                  frame; but Snezziboy chooses to display only
+                  one of them.
+                  
+                  Set to AUTO to use one of whatever the game 
+                  specifies for a frame.
+
     y. RETURN TO GAME
                   Returns to the game. Pressing start in the 
                   configuration screen also returns you to the game

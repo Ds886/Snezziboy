@@ -53,7 +53,7 @@ namespace snezzidebugger
                         s = right[rightIndex++];
 
                     x[0] = s.Substring(0, 8);
-                    x[1] = s.Substring(36, 52);
+                    x[1] = s.Substring(47, 52);
                     x[2] = "";
                     return x;
                 }

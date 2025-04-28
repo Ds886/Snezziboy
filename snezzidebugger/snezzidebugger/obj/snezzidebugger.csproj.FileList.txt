@@ -1,0 +1,9 @@
+bin\Release\snezzidebugger.exe
+bin\Release\snezzidebugger.pdb
+obj\Release\ResolveAssemblyReference.cache
+obj\Release\snezzidebugger.Form1.resources
+obj\Release\snezzidebugger.Form2.resources
+obj\Release\snezzidebugger.Properties.Resources.resources
+obj\Release\snezzidebugger.csproj.GenerateResource.Cache
+obj\Release\snezzidebugger.exe
+obj\Release\snezzidebugger.pdb

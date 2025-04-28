@@ -2,7 +2,7 @@
 -------------------------------------------------------------------
 Snezziboy Builder 
 */
-#define VERSION_NO  "0.22"
+#define VERSION_NO  "0.23"
 /*
 Copyright (C) 2006 bubble2k
 
@@ -89,7 +89,7 @@ void formmemorymap( int loRom, int romSize ) // romSize in bytes
         // HI ROM
         map( 0x00, 0x2f, LRAM,IO,  IO,  NOP, HROM,HROM,HROM,HROM);
         map( 0x30, 0x3f, LRAM,IO,  IO,  SRAM,HROM,HROM,HROM,HROM);
-        map( 0x40, 0x6f, NOP, NOP, NOP, NOP, HROM,HROM,HROM,HROM);
+        map( 0x40, 0x6f, HROM,HROM,HROM,HROM,HROM,HROM,HROM,HROM); // fixed v0.23
         map( 0x70, 0x7d, SRAM,SRAM,SRAM,SRAM,HROM,HROM,HROM,HROM);
         map( 0x7e, 0x7e, LRAM,LRAM,LRAM,LRAM,LRAM,LRAM,LRAM,LRAM);
         map( 0x7f, 0x7f, HRAM,HRAM,HRAM,HRAM,HRAM,HRAM,HRAM,HRAM);
@@ -458,11 +458,13 @@ int main( int argc, char **argv )
         unsigned short   romInvCheckSum = *((unsigned short *) (romBuffer+65472+28+2));
         if( (romCheckSum ^ romInvCheckSum)==0xffff )
             loROM = 0;
-
-        romCheckSum = *((short *) (romBuffer+32704+28));
-        romInvCheckSum = *((short *) (romBuffer+32704+28+2));
-        if( (romCheckSum ^ romInvCheckSum)==0xffff )
-            loROM = 1;
+        else
+        {
+            romCheckSum = *((short *) (romBuffer+32704+28));
+            romInvCheckSum = *((short *) (romBuffer+32704+28+2));
+            if( (romCheckSum ^ romInvCheckSum)==0xffff )
+                loROM = 1;
+        }
 
         if( loROM )
             printf( "Memory Map  : LoROM\n" );

@@ -1,6 +1,6 @@
 /*
 -------------------------------------------------------------------
-Snezziboy v0.22
+Snezziboy v0.23
 
 Copyright (C) 2006 bubble2k
 
@@ -38,12 +38,13 @@ GNU General Public License for more details.
 @-------------------------------------------------------------------------
 @ Timing counters 
 @-------------------------------------------------------------------------
-    .equ        CYCLE_SHIFT,            16
-    .equ        SCANLINE_SHIFT,         20
+    .equ        CYCLE_SHIFT,                14
+    .equ        SCANLINE_SHIFT,             20
 
-    .equ        NUM_SCANLINES,          262
-    .equ        CYCLES_PER_SCANLINE,    227
-    .equ        CYCLES_HBLANK,          182
+    .equ        NUM_SCANLINES,              262
+    .equ        CYCLES_PER_SCANLINE,        227
+    .equ        CYCLES_PER_SCANLINE_FAST,   304
+    .equ        CYCLES_HBLANK,              182
 
 
 @-------------------------------------------------------------------------
@@ -298,26 +299,26 @@ GNU General Public License for more details.
     .ifeq   immMode-0
         TestReadIO
         ReadIO8
+        ldrb    r1,[r0, #(\index)]
     .else
         add r0, SnesPC, #1
+        ldrb    r1,[r0, #(\index)]
     .endif
-1:
-    ldrb    r1,[r0, #(\index)]
-2:
 .endm
 
 .macro ReadData16 index=0
     .ifeq   immMode-0
         TestReadIO
         ReadIO16
+        ldrb    r1,[r0, #(\index)]
+        ldrb    r2,[r0, #(\index+1)]
+        add     r1, r1, r2, lsl #8
     .else
         add r0, SnesPC, #1
+        ldrb    r1,[r0, #(\index)]
+        ldrb    r2,[r0, #(\index+1)]
+        add     r1, r1, r2, lsl #8
     .endif
-1:
-    ldrb    r1,[r0, #(\index)]
-    ldrb    r2,[r0, #(\index+1)]
-    add     r1, r1, r2, lsl #8
-2:
 .endm 
 
 .macro ReadData24 index=0
@@ -844,6 +845,7 @@ ADCD_m0:    @ r1 = 0000XXxx, SnesA = AAaa0000
     biccc   SnesCV, SnesCV, #SnesFlagC
     
     AddPC   \pcinc, \cycles
+
 ADCD_m1:
     @ 8-bit add
     tsts    SnesCV, #SnesFlagC
@@ -986,7 +988,11 @@ ADCD_m1:
     ReadData
 
     subs    r1, r1, #1
-    mov     SnesNZ, r1, lsl #(16-mBit)
+    
+    @ version 0.23 fix
+    @
+    mov     SnesNZ, r1, ror #mBit
+    mov     SnesNZ, SnesNZ, lsr #16
     WriteData
 
     AddPC   \pcinc, \cycles
@@ -1037,7 +1043,10 @@ ADCD_m1:
     ReadData
 
     adds    r1, r1, #1
-    mov     SnesNZ, r1, lsl #(16-mBit)
+    @ version 0.23 fix
+    @
+    mov     SnesNZ, r1, ror #mBit
+    mov     SnesNZ, SnesNZ, lsr #16
 
     WriteData
 
@@ -1198,26 +1207,7 @@ ADCD_m1:
     orrcs   SnesCV, SnesCV, #SnesFlagC
     orrvs   SnesCV, SnesCV, #SnesFlagV
     mov     SnesNZ, SnesA, lsr #16
-/*
-    tsts    SnesCV, #SnesFlagC
-    bic     SnesCV, SnesCV, #(SnesFlagV+SnesFlagC)
-    mov     r0, #0
-    .ifeq mBit-16
-        moveq   r0, #0x00010000
-    .else
-        moveq   r0, #0x01000000
-    .endif
     
-    subs    SnesA, SnesA, r1, lsl #(32-mBit)
-    orrcs   SnesCV, SnesCV, #SnesFlagC
-    orrvs   SnesCV, SnesCV, #SnesFlagV
-
-    subs    SnesA, SnesA, r0
-    biccc   SnesCV, SnesCV, #SnesFlagC
-    orrvs   SnesCV, SnesCV, #SnesFlagV
-    
-    mov     SnesNZ, SnesA, lsr #16
-*/    
     AddPC   \pcinc, \cycles
 .endm
 
@@ -1483,8 +1473,6 @@ ADCD_m1:
         mov     r7, #0x00ff0000
     .endif
 
-    add     SnesCYCLES, SnesCYCLES, SnesA, lsl #3
-
     bl      OpMVP_Code
 
     .ifeq mBit-8
@@ -1507,8 +1495,6 @@ ADCD_m1:
     .else
         mov     r7, #0x00ff0000
     .endif
-
-    add     SnesCYCLES, SnesCYCLES, SnesA, lsl #3
 
     bl      OpMVN_Code
 
@@ -2206,9 +2192,11 @@ ADCD_m1:
 
     ComposeP                        @ r1 = nvmxdizc
     Push8
-    bic     r1, r1, #SnesP_D        @ r1 = nvmx0izc
-    orr     r1, r1, #SnesP_I        @ r1 = nvmx01zc
-    DecomposeP          0
+    @bic     r1, r1, #SnesP_D        @ r1 = nvmx0izc
+    @orr     r1, r1, #SnesP_I        @ r1 = nvmx01zc
+    @DecomposeP          0
+    bic     SnesMXDI, SnesMXDI, #SnesFlagD
+    orr     SnesMXDI, SnesMXDI, #SnesFlagI
 
     ldr     r0, \address
     ldrh    r0, [r0]

@@ -78,7 +78,7 @@ namespace snezzidebugger
             this.textBox1.Multiline = true;
             this.textBox1.Name = "textBox1";
             this.textBox1.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
-            this.textBox1.Size = new System.Drawing.Size(785, 330);
+            this.textBox1.Size = new System.Drawing.Size(868, 330);
             this.textBox1.TabIndex = 3;
             // 
             // button2
@@ -123,7 +123,7 @@ namespace snezzidebugger
             // 
             // button6
             // 
-            this.button6.Location = new System.Drawing.Point(725, 9);
+            this.button6.Location = new System.Drawing.Point(810, 7);
             this.button6.Name = "button6";
             this.button6.Size = new System.Drawing.Size(75, 23);
             this.button6.TabIndex = 8;
@@ -273,7 +273,7 @@ namespace snezzidebugger
             this.panel2.Controls.Add(this.comboBox1);
             this.panel2.Location = new System.Drawing.Point(12, 394);
             this.panel2.Name = "panel2";
-            this.panel2.Size = new System.Drawing.Size(796, 94);
+            this.panel2.Size = new System.Drawing.Size(868, 94);
             this.panel2.TabIndex = 26;
             // 
             // label2
@@ -287,7 +287,7 @@ namespace snezzidebugger
             // 
             // button14
             // 
-            this.button14.Location = new System.Drawing.Point(570, 3);
+            this.button14.Location = new System.Drawing.Point(653, 3);
             this.button14.Name = "button14";
             this.button14.Size = new System.Drawing.Size(88, 23);
             this.button14.TabIndex = 18;
@@ -321,7 +321,7 @@ namespace snezzidebugger
             "800000",
             "900000",
             "1000000"});
-            this.comboBox1.Location = new System.Drawing.Point(664, 3);
+            this.comboBox1.Location = new System.Drawing.Point(747, 3);
             this.comboBox1.Name = "comboBox1";
             this.comboBox1.Size = new System.Drawing.Size(121, 21);
             this.comboBox1.TabIndex = 19;
@@ -349,7 +349,7 @@ namespace snezzidebugger
             // 
             // button13
             // 
-            this.button13.Location = new System.Drawing.Point(582, 9);
+            this.button13.Location = new System.Drawing.Point(667, 7);
             this.button13.Name = "button13";
             this.button13.Size = new System.Drawing.Size(137, 23);
             this.button13.TabIndex = 17;
@@ -361,7 +361,7 @@ namespace snezzidebugger
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(812, 516);
+            this.ClientSize = new System.Drawing.Size(892, 516);
             this.Controls.Add(this.label1);
             this.Controls.Add(this.textBox1);
             this.Controls.Add(this.comboBox2);
@@ -370,8 +370,8 @@ namespace snezzidebugger
             this.Controls.Add(this.button1);
             this.Controls.Add(this.button13);
             this.MaximizeBox = false;
-            this.MaximumSize = new System.Drawing.Size(820, 600);
-            this.MinimumSize = new System.Drawing.Size(820, 550);
+            this.MaximumSize = new System.Drawing.Size(900, 600);
+            this.MinimumSize = new System.Drawing.Size(900, 550);
             this.Name = "Form1";
             this.SizeGripStyle = System.Windows.Forms.SizeGripStyle.Hide;
             this.Text = "Snezziboy Debugger";

@@ -52,7 +52,7 @@ namespace snezzidebugger
             reader.ReadProcess = p[processIdx];
 
             reader.OpenProcess();
-            for (int i = 0; i < 0x4000000; i += 100000)
+            for (int i = 0; i < 0x20000000; i += 100000)
             {
                 int bytesRead = 0;
                 byte[] buffer = reader.ReadProcessMemory(new IntPtr(i), 100100, out bytesRead);
@@ -476,7 +476,7 @@ namespace snezzidebugger
             if (reader != null)
             {
                 int bytesRead = 0;
-                byte[] buffer = reader.ReadProcessMemory(new IntPtr(offset-0x70), 0x100, out bytesRead);
+                byte[] buffer = reader.ReadProcessMemory(new IntPtr(offset-0x70), 0x40, out bytesRead);
 
                 if (buffer == null)
                 {
@@ -485,8 +485,8 @@ namespace snezzidebugger
                 }
 
                 string state =
-                    String.Format("${0:X2}/{1:X2}{2:X2} {3:X2}{4:X2}{5:X2}{6:X2} ", buffer[0x16], buffer[0x15], buffer[0x14],
-                    buffer[0x20], buffer[0x21], buffer[0x22], buffer[0x23]);
+                    String.Format("${0:X2}/{1:X2}{2:X2} ({7:X2}{8:X2}{9:X2}{10:X2}) {3:X2}{4:X2}{5:X2}{6:X2} ", buffer[0x16], buffer[0x15], buffer[0x14],
+                    buffer[0x20], buffer[0x21], buffer[0x22], buffer[0x23], buffer[0x33], buffer[0x32], buffer[0x31], buffer[0x30]);
 
                 state += String.Format( "{0,-15}", opcode(buffer) ) + " | ";
 

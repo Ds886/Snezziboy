@@ -1,6 +1,6 @@
 /*
 -------------------------------------------------------------------
-Snezziboy v0.22
+Snezziboy v0.23
 
 Copyright (C) 2006 bubble2k
 
@@ -32,7 +32,16 @@ GNU General Public License for more details.
     .equ    configBG1Priority,  (configSRAMBase+1)
     .equ    configBG2Priority,  (configSRAMBase+2)
     .equ    configBG3Priority,  (configSRAMBase+3)
-    .equ    configBackdrop,     (configSRAMBase+9)
+    .equ    configBackdrop,     (configSRAMBase+4)
+    .equ    configBGEnable,     (configSRAMBase+5)
+    .equ    configBGForceMode,  (configSRAMBase+6)
+    .equ    configCTRL,         (configSRAMBase+7)
+    .equ    configA,            (configSRAMBase+8)
+    .equ    configB,            (configSRAMBase+9)
+    .equ    configX,            (configSRAMBase+10)
+    .equ    configY,            (configSRAMBase+11)
+    .equ    configBGPrioritySet,(configSRAMBase+12)
+    
 
 @-------------------------------------------------------------------------
 @ Set value in memory
@@ -126,8 +135,19 @@ SetDebugState_UpdateState:
     and		r1, r1, #0xff
     SetDebugValue	0x24, r1
     
+    mov     r1, SnesPC
+    ldr     r0, =ROMOffset
+    ldr     r0, [r0]
+    sub     r1, r1, r0
+    SetDebugValue	0x30, r1
+    
+    
     mov     r0, SnesCYCLES, asr #CYCLE_SHIFT
-    add     r0, r0, #227
+    ldr     r1, =regROMAccess
+    ldrb    r1, [r2]
+    tsts    r1, #1
+    addeq   r0, r0, #CYCLES_PER_SCANLINE
+    addne   r0, r0, #CYCLES_PER_SCANLINE_FAST
     SetDebugValue	0x28, r0
     ldr     r0, =VerticalCount
     ldr     r0, [r0]
@@ -191,7 +211,7 @@ ROMWaitStateOk:
 
 ClearRAM:
     ldr     r0, =0x55555555
-    ldr     r2, =0x02000000
+    ldr     r2, =snesWramBase
     ldr     r1, =0x00020000
 ClearRAMLoop:
     str     r0, [r2], #4
@@ -200,7 +220,7 @@ ClearRAMLoop:
 
 ClearVRAM:
     ldr     r0, =0x00000000
-    ldr     r2, =0x02020000
+    ldr     r2, =snesVramBase
     ldr     r1, =0x00010000
 ClearVRAMLoop:
     str     r0, [r2], #4
@@ -278,35 +298,39 @@ EWRAMWaitStateOk:
     strh    r6, [r0], #8        @ pd = -1/1.4
     
 SoftReset:
+    @ version 0.23 fix
+    @
     @ check the save ram for config options
+    @ if the values are greater than their 
+    @ allowable range, then set them to default
     @
     ldr     r0, =configSRAMBase
-    ldrb    r1, [r0]
-    cmp     r1, #0xff
-    bne     SetInterruptVectors
+    ldr     r2, =configOptionCount
+    ldr     r3, =configDefaultOption
+    mov     r8, #(optionCount-2)
 
-    mov     r1, #1
-    strb    r1, [r0], #1
-    mov     r1, #2
-    strb    r1, [r0], #1
-    mov     r1, #0
-    strb    r1, [r0], #1
-    mov     r1, #4
-    strb    r1, [r0], #1
-    mov     r1, #1
-    strb    r1, [r0], #1
-    mov     r1, #0
-    strb    r1, [r0], #1
-    mov     r1, #1
-    strb    r1, [r0], #1
-    mov     r1, #2
-    strb    r1, [r0], #1
-    mov     r1, #3
-    strb    r1, [r0], #1
+checkOption_Loop:
+    ldrb    r1, [r0], #1
+    ldr     r4, [r2], #4
+    ldr     r5, [r3], #4
+    cmp     r1, r4
+    strgeb  r5, [r0, #-1]
+    subs    r8, r8, #1
+    bne     checkOption_Loop
+    
 
 SetInterruptVectors:
     bl      configUpdateKeyMap
+    bl      configUpdateMisc
 
+    @ set the current frame number
+    @
+    ldr     r0, =bgOffsetCurrFrame
+    mov     r1, #1
+    str     r1, [r0]
+    
+    @ get all the interrupt vectors
+    @
     ldr     r0, =VECTOR_COUNTRY
     TranslateAddress
     ldrb    r0, [r0]
@@ -336,10 +360,20 @@ SetInterruptVectors:
     ldr     r1, =IRQaddress
     str     r0, [r1]
 
+    @ get the reset vector and set the PC
+    @
     ldr     r0, =VECTOR_RESET
     TranslateAddress
     ReadAddr16
     TranslateAndSavePC
+    
+    @ get the ScanlineEnd code and save it
+    ldr     r2, =ScanlineEnd
+    ldr     r0, [r2]
+    ldr     r1, =ScanlineEnd_Code
+    str     r0, [r1]
+    mov     r0, #0
+    str     r0, [r2]
     
     ldr     r0, =0x00c00000
     
@@ -383,6 +417,15 @@ SetInterruptVectors:
     str     r0, [r1]
     ldr     r1, =IRQJump2
     str     r0, [r1]
+    
+    @ modify jump for mode 7 render
+    @
+    ldr     r0, =codeRenderMode7Reg
+    ldr     r1, =snesRenderScreen_RenderMode7Reg
+    ldr     r2, [r1]
+    str     r2, [r0]
+    mov     r2, #0
+    str     r2, [r1]
 
     ldr     EmuDecoder, =m1x1Decoder
 
@@ -441,12 +484,16 @@ RenderEndRenderer:
         ldr     r1, =screenCurr2
         ldr     r1, [r1]
         ldr     r0, =debugMemoryBase+0x118
+        ldr     r2, =0x7c7c7c7c
+        and     r1, r1, r2
+        mov     r1, r1, lsr #2
         str     r1, [r0]
 
         SetDebugTextP   #0x120, "BGxNBA"
         ldr     r1, =screenCurr3
         ldr     r1, [r1]
         ldr     r0, =debugMemoryBase+0x128
+        mov     r1, r1, lsl #2
         str     r1, [r0]
 
         SetDebugTextP    #0x130, "TYPE/BG#/OBJ"
@@ -574,17 +621,25 @@ ClearVRAMWriteLoop:                             @ clears both VRAM/OBJ table
 RenderEnableBG:
     ldr     r2, =0x04000000 
     ldrh    r0, [r2]
-    ldr     r1, =regMainScreen
+    
+    ldr     r1, =regMainScreenCopy2
     ldrb    r1, [r1]
-    ldr     r3, =regSubScreen
-    ldrb    r3, [r3]
-    orr     r1, r1, r3
+    ldr     r2, =regSubScreenCopy2
+    ldrb    r2, [r2]
+    orr     r1, r1, r2
+    ldr     r2, =regBGMode
+    ldrb    r2, [r2]
+    cmp     r2, #7
+    andeq   r2, r1, #0x01
+    orreq   r1, r1, r2, lsl #2
 
-    bic     r0, r0, #0x7
     bic     r0, r0, #0x1f00
     and     r1, r1, #0x1f
     orr     r0, r0, r1, lsl #8
     and     r0, r0, r5
+
+    bic     r0, r0, #0x7
+    orr     r0, r0, r6
 
     ldr     r1, =configBG0Priority
     ldrb    r1, [r1]
@@ -606,6 +661,7 @@ RenderEnableBG:
     cmp     r1, #04
     biceq   r0, r0, #(1<<11)
 
+    ldr     r2, =0x04000000 
     strh    r0, [r2]
 
     bx      lr
@@ -616,8 +672,9 @@ RenderEnableBG:
 .equ    EnableBG3,  (1<<11)
 .equ    EnableOBJ,  (1<<12)
 
-.macro  EnableBG    BGs
+.macro  EnableBG    BGs, Mode=0
     mov     r5, #\BGs
+    mov     r6, #\Mode
     bl      RenderEnableBG
 .endm
 
@@ -655,23 +712,34 @@ RenderCopyBGChar2_Loop:
     mov     r0, #0
 
 RenderCopyBGChar2_Loop2:
-/*
-    ldr     r1, =regMainScreen
+
+    ldr     r1, =configBGEnable
     ldrb    r1, [r1]
-    ldr     r2, =regSubScreen
+    tsts    r1, r1
+    bne     1f
+    ldr     r1, =regMainScreenCopy2
+    ldrb    r1, [r1]
+    ldr     r2, =regSubScreenCopy2
     ldrb    r2, [r2]
-    orr     r1, r2, r1
+    orr     r1, r1, r2
+    ldr     r2, =regBGMode
+    ldrb    r2, [r2]
+    cmp     r2, #7
+    andeq   r2, r1, #0x01
+    orreq   r1, r1, r2, lsl #2
+
     mov     r2, #1
     tsts    r1, r2, lsl r0
     beq     RenderCopyBGChar2_SkipLoop      @ skip if background is not activated in main/sub screen
-*/
+1:
+
     ldr     r1, =regBG1NBA
     ldrb    r1, [r1, r0]
     and     r1, r1, #0x07                   @ r6 = 00000aaa
     mov     r6, r1                          @ r6 = 00000aaa
     mov     r1, r1, lsl #13
-    add     r1, r1, #0x02000000             
-    add     r1, r1, #0x00020000
+    add     r1, r1, #(snesVramBase&0xff000000)
+    add     r1, r1, #(snesVramBase&0x00ff0000)
 
     and     r5, r7, #0xff
     ldr     r2, =RenderCopyCharUnpackTable
@@ -709,16 +777,27 @@ RenderCopyBGChar2_SkipLoop:
 RenderCopyBGTileMap:
     ldr     r1, =ScreenMode
     strb    r0, [r1]
-/*
-    ldr     r1, =regMainScreen
+
+    ldr     r1, =configBGEnable
     ldrb    r1, [r1]
-    ldr     r2, =regSubScreen
+    tsts    r1, r1
+    bne     1f
+    ldr     r1, =regMainScreenCopy2
+    ldrb    r1, [r1]
+    ldr     r2, =regSubScreenCopy2
     ldrb    r2, [r2]
-    orr     r1, r2, r1
+    orr     r1, r1, r2
+    ldr     r2, =regBGMode
+    ldrb    r2, [r2]
+    cmp     r2, #7
+    andeq   r2, r1, #0x01
+    orreq   r1, r1, r2, lsl #2
+    
     mov     r2, #1
     tsts    r1, r2, lsl r0
     bxeq    lr                              @ skip if background is not activated in main/sub screen
-  */  
+1:
+  
     cmp     r0, #2                          @ if this is BG3, 
     moveq   r9, #0x8000                     @ add to the tile map palette
     movne   r9, #0x0000
@@ -740,6 +819,8 @@ RenderCopyBGTileMap:
     ldrb    r1, [r1]
     ldr     r4, =VRAMWriteTileMap
     str     r4, [r5], #4
+    ldr     r4, =VRAMBG
+    strb    r1, [r4, r6, lsr #11]
     mov     lr, pc
     ldr     pc, =CopyTileMap
     tsts    r7, #0x03
@@ -750,6 +831,8 @@ RenderCopyBGTileMap:
     add     r0, r6, #0x800
     ldr     r4, =VRAMWriteTileMap
     str     r4, [r5], #4
+    ldr     r4, =VRAMBG
+    strb    r1, [r4, r6, lsr #11]
     mov     lr, pc
     ldr     pc, =CopyTileMap
     cmp     r7, #0x03
@@ -760,6 +843,8 @@ RenderCopyBGTileMap:
     add     r0, r6, #0x1000
     ldr     r4, =VRAMWriteTileMap
     str     r4, [r5], #4
+    ldr     r4, =VRAMBG
+    strb    r1, [r4, r6, lsr #11]
     mov     lr, pc
     ldr     pc, =CopyTileMap
 
@@ -768,10 +853,13 @@ RenderCopyBGTileMap:
     add     r0, r6, #0x1800
     ldr     r4, =VRAMWriteTileMap
     str     r4, [r5], #4
+    ldr     r4, =VRAMBG
+    strb    r1, [r4, r6, lsr #11]
     mov     lr, pc
     ldr     pc, =CopyTileMap
 
 CopyBGTileMap_End:
+
     ldmfd   sp!, {lr}
     bx      lr
 
@@ -826,7 +914,7 @@ RenderCopyOBJChar:
     str     r6, [r1], #4
 
     ldr     r2, =charUnpack4
-    ldr     r1, =0x02020000
+    ldr     r1, =snesVramBase
     add     r1, r1, r0, lsl #11
     
     ldr     r3, =0x06010000
@@ -869,15 +957,26 @@ RenderCopyBGCNT:
     ldr     r1, =NumColors
     strb    r6, [r1]
     
-/*    ldr     r1, =regMainScreen
+    ldr     r1, =configBGEnable
     ldrb    r1, [r1]
-    ldr     r2, =regSubScreen
+    tsts    r1, r1
+    bne     1f
+    ldr     r1, =regMainScreenCopy2
+    ldrb    r1, [r1]
+    ldr     r2, =regSubScreenCopy2
     ldrb    r2, [r2]
-    orr     r1, r2, r1
+    orr     r1, r1, r2
+    ldr     r2, =regBGMode
+    ldrb    r2, [r2]
+    cmp     r2, #7
+    andeq   r2, r1, #0x01
+    orreq   r1, r1, r2, lsl #2
+    
     mov     r2, #1
     tsts    r1, r2, lsl r0
     bxeq    lr                              @ skip if background is not activated in main/sub screen
-*/
+1:
+
     ldr     r3, =configBG0Priority          @ override the default SNES priority
     ldrb    r3, [r3, r0]
     cmp     r3, #0x4
@@ -914,38 +1013,126 @@ RenderCopyBGCNT:
 2:  
 
     @ determine the 16-k blocks in GBA VRAM for the character maps.
+    @ with this complex algorithm... 
+    @ makes me want to move over to DS.
     @
     mov     r7, r1
     ldr     r5, =regBG1NBA
     ldrb    r5, [r5]
     ldr     r6, =regBG2NBA
     ldrb    r6, [r6]
+    ldr     r8, =regBG3NBA
+    ldrb    r8, [r8]
+
+    cmp     r0, #2                          @ are we doing BG3?
+    beq     AllocateBG3
     
-    cmp     r0, #1                          @ are we doing BG2?
-    moveq   r1, #0                          @ if so, use block #0, temporarily.
+    @-------------------------------------
+    @ Allocate BG1 / BG2    
+    @-------------------------------------
+    cmp     r5, r6                          @ but is BG1 != BG2?
+    bne     BG1_NEQ_BG2
+
+    @ BG1 == BG2
+    @
+    mov     r1, #0
+    b       EndAllocate
     
-    cmp     r5, r6                          @ but is NBA for BG1 != BG2?
-    beq     NBA_BG1_EQS_BG2
+BG1_NEQ_BG2:
+    
+    @ by default set BG1 to block #0, BG2 to block #1
+    mov     r1, r0
+    
+    @ here BG1 <> BG2 
+    @
+    sub     r3, r6, r5                      @ if NBA( BG2 - BG1 ) = 2
+    cmp     r3, #2
+    moveq   r1, r0                          @ if so, set BG1 = block #0, BG2 = block #1
+    beq     EndAllocate
+    
+    sub     r3, r5, r6                      @ if NBA( BG1 - BG2 ) = 2
+    cmp     r3, #2
+    moveq   r1, r0                          @ if so, set BG1 = block #1, BG2 = block #0
+    eoreq   r1, r1, #0x1
+    beq     EndAllocate
+
+    @ here BG1 <> BG2, so check for the mode >= 2, 
+    @ 
     ldr     r3, =regBGMode
     ldrb    r3, [r3]
     and     r3, r3, #0x7
-    cmp     r3, #2                          @ are we in mode 2 and above? (mode 2 and above has only 2 backgrounds)
-    movge   r1, #2                          @ if so, use block #2
-    movlt   r1, #1                          @ otherwise, use block #1 instead
+
+    ldr     r4, =regMainScreenCopy2
+    ldrb    r4, [r4]
+    ldr     r8, =regSubScreenCopy2
+    ldrb    r8, [r8]
+    orr     r4, r4, r8
     
-NBA_BG1_EQS_BG2:
-    cmp     r0, #0                          @ are we doing BG1?
-    moveq   r1, #0                          @ if so, always use block #0
+    cmp     r3, #1
+    beq     BG1_NEQ_BG2_Mode1
+    cmp     r3, #2              
+    bgt     BG1_NEQ_BG2_Mode2AndAbove
+    b       EndAllocate
     
-    cmp     r0, #2                          @ are we doing BG3? (this won't happen for modes 2 and above)
-    moveq   r1, #2                          @ if so, use block #2
-    bne     EndBG3Block1Check
+BG1_NEQ_BG2_Mode1:
+    tsts    r4, #4                          @ check if BG2 is enabled
+    beq     BG1_NEQ_BG2_Mode1_BG2Disabled
     
+    b       EndAllocate
+    
+BG1_NEQ_BG2_Mode1_BG2Disabled:
+    ldr     r3, =configBGEnable
+    ldrb    r3, [r3]
+    cmp     r3, #0
+    movne   r1, r0
+    moveq   r1, r0, lsl #1
+    b       EndAllocate
+    
+BG1_NEQ_BG2_Mode2AndAbove:
+    mov     r1, r0, lsl #1                  @ if so, allocate block #0 for BG1, block #2 for BG2
+    b       EndAllocate
+    
+    @ otherwise... 
+    @
+    mov     r1, r0                          @ generic, allocate block #0 for BG1, block #1 for BG2
+    beq     EndAllocate
+
+AllocateBG3:
+
+    @ by default set BG3 to block #2
+    mov     r1, #2
+
+    @-------------------------------------
+    @ Allocate BG3
+    @-------------------------------------
+    @
     @ here we try to decide if BG3 should be moved on into block #1 instead (because
     @ BG1/2 may take up a small space)
+    
+    @ first , we check if BG3's character address - BG1's address is exactly 2
+    @ if so, allocate block #1
+    @
+    sub     r3, r8, r5
+    cmp     r3, #2
+    moveq   r1, #1
+    beq     EndAllocate
+    
+    @ check if BG1 = BG2?
     @
     cmp     r5, r6                          @ if NBA for BG1 != BG2, then we can never move BG3 to block #1
-    bne     EndBG3Block1Check
+    bne     EndAllocate
+    
+    @ ok, BG1 == BG2
+    @ so, check if the OBJ base starts at middle of BG1 
+    @ 
+    ldr     r8, =regObSel
+    ldrb    r8, [r8]
+    and     r8, r8, #0x03
+    mov     r8, r8, lsl #1
+    sub     r3, r8, r5
+    cmp     r3, #2                          @ if it is, assume that BG3 can be moved to block #1.
+    moveq   r1, #1                          @ (will not work if BG1 shares the tiles with the OBJs)
+    beq     EndAllocate
     
     mov     r8, #0
     mov     r6, r6, lsl #2
@@ -958,13 +1145,14 @@ BG3CheckLoop:
     bmi     BG3CheckSkipLoop
     cmp     r5, #8
     movle   r1, #1
-    ble     EndBG3Block1Check
+    ble     EndAllocate
+    
 BG3CheckSkipLoop:
     add     r8, r8, #1
     cmp     r8, #3
     bne     BG3CheckLoop
 
-EndBG3Block1Check:
+EndAllocate:
     mov     r5, #0x06000000
     add     r5, r5, r1, lsl #14             @ r5 = 0x0600?000 (GBA VRAM address for the characters)
     sub     r5, r5, r7, lsl #13
@@ -1043,6 +1231,76 @@ EndBG3Block1Check:
     bl      RenderCopyBGCNT
 .endm
 
+
+@-------------------------------------------------------------------------
+@ mode 7 BG CNT
+@-------------------------------------------------------------------------
+RenderCopyMode7BGCNT:
+    ldr     r0, =0xF080
+    ldr     r1, =0x0400000C
+    strh    r0, [r1]
+    
+    @ set up the VRAMWrite table for mode 7
+    @
+    ldr     r6, =VRAMWrite
+    ldr     r5, =VRAMWriteMode7
+    mov     r8, #16
+1:
+    str     r5, [r6], #4
+    subs    r8, r8, #1
+    bne     1b
+    
+    ldr     r5, =VRAMWriteNOP
+    mov     r8, #16
+1:
+    str     r5, [r6], #4
+    subs    r8, r8, #1
+    bne     1b
+    
+    bx      lr
+
+.macro CopyMode7BGCNT
+    bl      RenderCopyMode7BGCNT
+.endm
+
+@-------------------------------------------------------------------------
+@ mode 7 BG CNT
+@-------------------------------------------------------------------------
+RenderCopyMode7TileChar:
+
+    ldr     r1, =snesVramBase
+    ldr     r2, =gbaVramBase
+    ldr     r3, =gbaVramBase+0x8000
+    mov     r8, #8192
+
+1:
+    @ mode 7 tilemap
+    ldrb    r6, [r1], #1
+
+    @ mode 7 character
+    ldrb    r4, [r1], #1
+    
+    @ mode 7 tilemap
+    ldrb    r7, [r1], #1
+    orr     r6, r6, r7, lsl #8
+    strh    r6, [r3], #2
+    
+    @ mode 7 character
+    ldrb    r5, [r1], #1
+    orr     r4, r4, r5, lsl #8
+    strh    r4, [r2], #2
+
+    subs    r8, r8, #1
+    bne     1b
+
+    bx      lr
+
+.macro CopyMode7TileChar
+    bl      RenderCopyMode7TileChar
+.endm
+
+
+
     SetText "RMODE0"
 
 @-------------------------------------------------------------------------
@@ -1061,9 +1319,9 @@ RenderMode1:
     StartRenderer
 
     DisableBG
+    CopyBGCNT       2, COLOR_4, 1
     CopyBGCNT       0, COLOR_16, 1
     CopyBGCNT       1, COLOR_16, 1
-    CopyBGCNT       2, COLOR_4, 1
     CopyBGCharEx    COLOR_16, COLOR_16, COLOR_4, COLOR_NONE
     CopyOBJChar     1
     CopyOBJChar     0
@@ -1162,6 +1420,17 @@ RenderMode5:
 @-------------------------------------------------------------------------
 RenderMode6:
     StartRenderer
+    
+    @ added for version 0.23
+    @
+    DisableBG
+    CopyBGCNT       0, COLOR_16, 1
+    CopyBGCharEx    COLOR_16, COLOR_NONE, COLOR_NONE, COLOR_NONE
+    CopyOBJChar     1
+    CopyOBJChar     0
+    CopyBGTileMap   0
+    EnableBG        EnableBG0 + EnableOBJ
+    
     EndRenderer
 
     SetText "RMODE7"
@@ -1172,14 +1441,11 @@ RenderMode7:
     StartRenderer
     
     DisableBG
-    CopyBGCNT       0, COLOR_256, 1
-    CopyBGCNT       1, COLOR_16, 1
-    CopyBGCharEx    COLOR_256, COLOR_16, COLOR_NONE, COLOR_NONE
+    CopyMode7BGCNT
+    CopyMode7TileChar
     CopyOBJChar     1
     CopyOBJChar     0
-    CopyBGTileMap   0
-    CopyBGTileMap   1
-    EnableBG        EnableBG0 + EnableBG1 + EnableOBJ
+    EnableBG        EnableBG2 + EnableOBJ, 2
 
     EndRenderer
 
@@ -1260,38 +1526,47 @@ writeTextEnd:
 @ Configuration text
 @=========================================================================
 
-    .equ    optionCount, 12
+    .equ    optionCount, 14
 
 configOptionLeft:
     .word   config_BG0
     .word   config_BG1
     .word   config_BG2
     .word   config_BG3
+    .word   config_BACKDROP
+    .word   config_BGENABLE
+    .word   config_BGFORCEMODE
     .word   config_CTRL
     .word   config_A
     .word   config_B
     .word   config_X
     .word   config_Y
-    .word   config_BACKDROP
     .word   config_RETURN
     .word   config_RESET
 
 configOptionCount:
-    .word   5, 5, 5, 5, 4, 4, 4, 4, 4, 2, 1, 1
+    .word   5, 5, 5, 5, 2, 2, 9, 4, 4, 4, 4, 4, 1, 1
 
 configOption:
     .word   configOptionSet_BG
     .word   configOptionSet_BG
     .word   configOptionSet_BG
     .word   configOptionSet_BG
+    .word   configOptionSet_YesNo
+    .word   configOptionSet_SlowFast
+    .word   configOptionSet_Modes
     .word   configOptionSet_Ctrl
     .word   configOptionSet_Key
     .word   configOptionSet_Key
     .word   configOptionSet_Key
     .word   configOptionSet_Key
-    .word   configOptionSet_YesNo
     .word   configOptionSet_Empty
     .word   configOptionSet_Empty
+    
+configDefaultOption:
+    .word   1, 2, 0, 3 
+    .word   0, 0, 0, 2 
+    .word   2, 0, 3, 1
 
 configOptionSet_BG:
     .word   configBG_Prio0, configBG_Prio1, configBG_Prio2, configBG_Prio3, configBG_Disabled
@@ -1304,6 +1579,13 @@ configOptionSet_Key:
 
 configOptionSet_YesNo:
     .word   configYesNo_No, configYesNo_Yes
+
+configOptionSet_SlowFast:
+    .word   configBGEnable_Slow, configBGEnable_Fast
+    
+configOptionSet_Modes:
+    .word   configMode_Auto,configMode_0,configMode_1,configMode_2,configMode_3
+    .word   configMode_4,configMode_5,configMode_6,configMode_7
 
 configOptionSet_Empty:
     .word   configEmpty
@@ -1318,6 +1600,8 @@ config_B:           .asciz "BUTTON B"
 config_X:           .asciz "BUTTON X"
 config_Y:           .asciz "BUTTON Y"
 config_BACKDROP:    .asciz "BACKDROP"
+config_BGENABLE:    .asciz "BG ENABLE"
+config_BGFORCEMODE: .asciz "BG FORCED MODE"
 config_RETURN:      .asciz "RETURN TO GAME"
 config_RESET:       .asciz "RESET GAME"
 
@@ -1338,7 +1622,20 @@ configKey_CA:       .asciz "CTRL A  "
 configKey_CB:       .asciz "CTRL B  "
 
 configYesNo_Yes:    .asciz "YES     "
-configYesNo_No:     .asciz "NO      "
+configYesNo_No:         .asciz "NO      "
+
+configBGEnable_Slow:    .asciz "SMART   "
+configBGEnable_Fast:    .asciz "FAST    "
+
+configMode_Auto:    .asciz "AUTO  "
+configMode_0:       .asciz "MODE 0"
+configMode_1:       .asciz "MODE 1"
+configMode_2:       .asciz "MODE 2"
+configMode_3:       .asciz "MODE 3"
+configMode_4:       .asciz "MODE 4"
+configMode_5:       .asciz "MODE 5"
+configMode_6:       .asciz "MODE 6"
+configMode_7:       .asciz "MODE 7"
 
 configCursorText:   .asciz "X"
 configSpaceText:    .asciz " "
@@ -1351,80 +1648,18 @@ configEmpty:        .asciz ""
 @=========================================================================
 configScreen:
     stmfd	sp!, {r3-r8}
-
-    @ disable master interrupt
-    @
-    ldr     r0, =0x04000208
-    mov     r1, #0
-    strb    r1, [r0]
-
-    ldr	    r0, =0x04000000			@ disable all BGs and OBJs first
-    ldrh    r1, [r0]
-    bic     r1, r1, #0xff00
-    strh    r1, [r0]
-
-    @ set BG0 CNT
-    ldr     r0, =0x04000008
-    mov     r1, #0x0800
-    str     r1, [r0]
-
-    @ clear tilemap for BG0
-    ldr     r0, =0x06004000
-    mov     r1, #0
-    ldr     r8, =(32*32)
-configClearTileMap:
-    strh    r1, [r0], #2
-    subs    r8, r8, #1
-    bne     configClearTileMap
-
-    @ set BG0 HOFS, VOFS
-    ldr     r0, =0x04000010
-    mov     r1, #0
-    strh    r1, [r0], #2
-    strh    r1, [r0], #2
-
-    @ then we save and update the palettes
-    @
-    ldr     r0, =0x05000000
-    ldr     r1, =0x0600ff00
-    mov     r3, #0
-    mov     r8, #16
-configCopyPaletteLoop:
-    ldrh    r2, [r0]
-    strh    r2, [r1], #2
-    strh    r3, [r0], #2
-    eor     r3, r3, #0xff
-    eor     r3, r3, #0xff00
-    subs    r8, r8, #1
-    bne     configCopyPaletteLoop
-
-    @ here we copy the config screen fonts to the tile
-    @
-    ldr     r0, =FontNumbers
-    ldr     r1, =charUnpack4
-    ldr     r2, =0x06000000
-    mov     r8, #(10+27)*8
-configCopyFontLoop:
-    ldrb    r3, [r0], #1
-    ldr     r3, [r1, r3, lsl #2]
-    str     r3, [r2], #4
-    subs    r8, r8, #1
-    bne     configCopyFontLoop
+    stmfd   sp!, {lr}
+    bl      configClearScreen
+    ldmfd   sp!, {lr}
 
     @ Write text to the screen
     @
     WriteText 3, 1, "SNEZZIBOY CONFIGURATION"
 
-    @ enable BG 0
-    @
-    ldr	    r0, =0x04000000			
-    ldrh    r1, [r0]
-    orr	    r1, r1, #0x0100
-    strh    r1, [r0]
-
 configWriteConfig:
     stmfd   sp!, {lr}
     bl      configUpdateKeyMap
+    bl      configUpdateMisc
     ldmfd   sp!, {lr}
 
     @ write the configuration to the screen
@@ -1562,10 +1797,11 @@ configRestorePaletteLoop:
 
     @ force refresh of screen
     @
-    ldr     r0, =(screenCurr1+2)
+    ldr     r0, =(screenCurr1)
     ldr     r1, [r0]
-    eor     r1, r1, #0x80
-    strb    r1, [r0]
+    mvn     r1, r1
+    ldr     r0, =(screenPrev1)
+    str     r1, [r0]
 	
     @ enable master interrupt
     @
@@ -1584,14 +1820,14 @@ configControlKey:
 
 configUpdateKeyMap:
 
-    ldr     r0, =configSRAMBase
-    ldrb    r0, [r0, #4]            @ find out the control key
+    ldr     r0, =configCTRL
+    ldrb    r0, [r0]                @ find out the control key
 
     ldr     r2, =configControlKey
     ldr     r2, [r2, r0, lsl #2]    @ r2 = control key mapping
 
-    ldr     r0, =configSRAMBase
-    ldrb    r0, [r0, #5]            @ find out the control key
+    ldr     r0, =configA
+    ldrb    r0, [r0]                @ find out the control key
     tsts    r0, #0x2
     bic     r0, r0, #0x2
     orrne   r0, r0, r2
@@ -1602,8 +1838,8 @@ configUpdateKeyMap:
     ldr     r1, =regJoyA
     strh    r0, [r1]    
 
-    ldr     r0, =configSRAMBase
-    ldrb    r0, [r0, #6]            @ find out the control key
+    ldr     r0, =configB
+    ldrb    r0, [r0]                @ find out the control key
     tsts    r0, #0x2
     bic     r0, r0, #0x2
     orrne   r0, r0, r2
@@ -1614,8 +1850,8 @@ configUpdateKeyMap:
     ldr     r1, =regJoyB
     strh    r0, [r1]    
 
-    ldr     r0, =configSRAMBase
-    ldrb    r0, [r0, #7]            @ find out the control key
+    ldr     r0, =configX
+    ldrb    r0, [r0]                @ find out the control key
     tsts    r0, #0x2
     bic     r0, r0, #0x2
     orrne   r0, r0, r2
@@ -1626,8 +1862,8 @@ configUpdateKeyMap:
     ldr     r1, =regJoyX
     strh    r0, [r1]    
 
-    ldr     r0, =configSRAMBase
-    ldrb    r0, [r0, #8]            @ find out the control key
+    ldr     r0, =configY
+    ldrb    r0, [r0]                @ find out the control key
     tsts    r0, #0x2
     bic     r0, r0, #0x2
     orrne   r0, r0, r2
@@ -1641,6 +1877,273 @@ configUpdateKeyMap:
     bx      lr
 
     .ltorg
+
+
+@-------------------------------------------------------------------------
+@ version 0.23
+@ update miscellaneous config options
+@ - forced mode
+@-------------------------------------------------------------------------
+codeForceMode:
+    and     r0, r0, #7
+    mov     r0, #0
+    mov     r0, #1
+    mov     r0, #2
+    mov     r0, #3
+    mov     r0, #4
+    mov     r0, #5
+    mov     r0, #6
+    mov     r0, #7
+    
+configUpdateMisc:  
+    @ forced mode
+    @
+    ldr     r2, =configBGForceMode
+    ldrb    r2, [r2]
+    ldr     r1, =codeForceMode
+    ldr     r1, [r1, r2, lsl #2]
+    
+    ldr     r2, =vBlankRefreshScreen_ForceMode
+    str     r1, [r2]
+    ldr     r2, =snesRenderScreenAtVBlank_ForceMode
+    str     r1, [r2]
+    
+    bx      lr
+
+@-------------------------------------------------------------------------
+@ Cycle through the various BG priority set
+@-------------------------------------------------------------------------
+.macro  cyclePriority  p1,p2,p3,p4
+    ldr     r0, =configBG0Priority
+    mov     r1, #\p1
+    strb    r1, [r0]
+    ldr     r0, =configBG1Priority
+    mov     r1, #\p2
+    strb    r1, [r0]
+    ldr     r0, =configBG2Priority
+    mov     r1, #\p3
+    strb    r1, [r0]
+    ldr     r0, =configBG3Priority
+    mov     r1, #\p4
+    strb    r1, [r0]
+    b       configCycleBGPriorityEnd
+1:
+.endm
+
+configCycleBGPriority:
+    stmfd   sp!, {r3-r8,lr}
+    
+    @ clear screen 
+    @
+    bl      configClearScreen
+    WriteText 3, 1, "SNEZZIBOY CONFIGURATION"
+    WriteText 3, 5, "  CYCLE BG PRIORITIES  "
+    
+    ldr     r1, =configBGPrioritySet
+    ldrb    r0, [r1]
+    
+    add     r0, r0, #1
+    cmp     r0, #04
+    movge   r0, #0
+    strb    r0, [r1]
+    
+    cmp     r0, #0
+    bne     9f
+    WriteText 3, 6, "      P1 P2 P0 P3      "
+    cyclePriority   1,2,0,3
+9:    
+    cmp     r0, #1
+    bne     9f
+    WriteText 3, 6, "      P2 P1 P0 P3      "
+    cyclePriority   2,1,0,3
+9:    
+    cmp     r0, #2
+    bne     9f
+    WriteText 3, 6, "      P0 P1 P2 P3      "
+    cyclePriority   0,1,2,3
+9:    
+    cmp     r0, #3
+    bne     9f
+    WriteText 3, 6, "      P1 P0 P2 P3      "
+    cyclePriority   1,0,2,3
+9:    
+
+configCycleBGPriorityEnd:
+
+    @ wait until keys are released
+    ldr     r0, =0x04000130
+    ldr     r2, =0x0f0
+1:
+    ldrh    r1, [r0]
+    mvn     r1, r1
+    tsts    r1, r2
+    bne     1b
+    
+    ldmfd   sp!, {r3-r8,lr}
+    stmfd   sp!, {r3-r8}
+    b       configExit
+
+    .ltorg
+    
+@-------------------------------------------------------------------------
+@ Cycle through various screen modes
+@-------------------------------------------------------------------------
+configCycleBGForcedMode:
+    stmfd   sp!, {r3-r8,lr}
+
+    @ clear screen 
+    @
+    bl      configClearScreen
+    WriteText 3, 1, "SNEZZIBOY CONFIGURATION"
+    WriteText 3, 5, "    CYCLE BG MODES     "
+    
+    ldr     r1, =configBGForceMode
+    ldrb    r0, [r1]
+    add     r0, r0, #1
+    cmp     r0, #9
+    movge   r0, #0
+    strb    r0, [r1]
+    
+    cmp     r0, #0
+    bne     9f
+    WriteText 3, 6, "         AUTO          "
+9:
+    
+    cmp     r0, #1
+    bne     9f
+    WriteText 3, 6, "        MODE 0         "
+9:
+    
+    cmp     r0, #2
+    bne     9f 
+    WriteText 3, 6, "        MODE 1         "
+9:
+    
+    cmp     r0, #3
+    bne     9f
+    WriteText 3, 6, "        MODE 2         "
+9:
+    
+    cmp     r0, #4
+    bne     9f
+    WriteText 3, 6, "        MODE 3         "
+9:
+    
+    cmp     r0, #5
+    bne     9f
+    WriteText 3, 6, "        MODE 4         "
+9:
+    
+    cmp     r0, #6
+    bne     9f
+    WriteText 3, 6, "        MODE 5         "
+9:
+    
+    cmp     r0, #7
+    bne     9f
+    WriteText 3, 6, "        MODE 6         "
+9:
+
+    cmp     r0, #8
+    bne     9f
+    WriteText 3, 6, "        MODE 7         "
+9:
+    
+    bl      configUpdateMisc
+    
+    @ wait until keys are released
+    ldr     r0, =0x04000130
+    ldr     r2, =0x0f0
+1:
+    ldrh    r1, [r0]
+    mvn     r1, r1
+    tsts    r1, r2
+    bne     1b
+    
+    ldmfd   sp!, {r3-r8,lr}
+    stmfd   sp!, {r3-r8}
+    b       configExit
+
+    .ltorg
+
+
+@-------------------------------------------------------------------------
+@ clear the screen and update palette/fonts 
+@-------------------------------------------------------------------------
+configClearScreen:
+    @ disable master interrupt
+    @
+    ldr     r0, =0x04000208
+    mov     r1, #0
+    strb    r1, [r0]
+
+    ldr	    r0, =0x04000000			@ disable all BGs and OBJs first
+    ldrh    r1, [r0]
+    bic     r1, r1, #0xff00
+    strh    r1, [r0]
+    
+    mov     r0, #0
+    ldr     r1, =0x04000050
+    strh    r0, [r1]
+
+    @ set BG0 CNT
+    ldr     r0, =0x04000008
+    mov     r1, #0x0800
+    str     r1, [r0]
+
+    @ clear tilemap for BG0
+    ldr     r0, =0x06004000
+    mov     r1, #0
+    ldr     r8, =(32*32)
+configClearTileMap:
+    strh    r1, [r0], #2
+    subs    r8, r8, #1
+    bne     configClearTileMap
+
+    @ set BG0 HOFS, VOFS
+    ldr     r0, =0x04000010
+    mov     r1, #0
+    strh    r1, [r0], #2
+    strh    r1, [r0], #2
+
+    @ then we save and update the palettes
+    @
+    ldr     r0, =0x05000000
+    ldr     r1, =0x0600ff00
+    mov     r3, #0
+    mov     r8, #16
+configCopyPaletteLoop:
+    ldrh    r2, [r0]
+    strh    r2, [r1], #2
+    strh    r3, [r0], #2
+    eor     r3, r3, #0xff
+    eor     r3, r3, #0xff00
+    subs    r8, r8, #1
+    bne     configCopyPaletteLoop
+
+    @ here we copy the config screen fonts to the tile
+    @
+    ldr     r0, =FontNumbers
+    ldr     r1, =charUnpack4
+    ldr     r2, =0x06000000
+    mov     r8, #(10+27)*8
+configCopyFontLoop:
+    ldrb    r3, [r0], #1
+    ldr     r3, [r1, r3, lsl #2]
+    str     r3, [r2], #4
+    subs    r8, r8, #1
+    bne     configCopyFontLoop
+    
+    ldr	    r0, =0x04000000			
+    ldrh    r1, [r0]
+    bic     r1, r1, #0x7
+    orr	    r1, r1, #0x0100
+    strh    r1, [r0]
+
+    bx      lr
+
+    .ltorg
+
 
 @=========================================================================
 @ GBA 8x8 Font
@@ -2083,7 +2586,7 @@ IOWrite:
     IO  0x001,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,W4016,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x4010
     IO  0x01e,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x4020
     
-    IO  0x001,  W4200,IONOP,W4202,W4203,W4204,W4205,W4206,W4207, W4208,W4209,W420A,W420B,IONOP,IONOP,IONOP,IONOP     @ 0x4200
+    IO  0x001,  W4200,IONOP,W4202,W4203,W4204,W4205,W4206,W4207, W4208,W4209,W420A,W420B,IONOP,W420D,IONOP,IONOP     @ 0x4200
     IO  0x00f,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x4210
     
     IO  0x001,  W43x0,W43x1,W43x2,W43x3,W43x4,W43x5,W43x6,W43x7, W43x8,W43x9,W43xA,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x4300
@@ -8395,6 +8898,31 @@ decimalAdd:
     .hword 0x0235,0x0236,0x0237,0x0238,0x0239,0x023a,0x023b,0x023c,0x023d,0x023e,0x023f,0x0240,0x0241,0x0242,0x0243,0x0244
     .hword 0x0245,0x0246,0x0247,0x0248,0x0249,0x024a,0x024b,0x024c,0x024d,0x024e,0x024f,0x0250,0x0251,0x0252,0x0253,0x0254
     .hword 0x0255,0x0256,0x0257,0x0258,0x0259,0x025a,0x025b,0x025c,0x025d,0x025e,0x025f,0x0260,0x0261,0x0262,0x0263,0x0264
+
+
+@=========================================================================
+@ y-offset for backgrounds 
+@ SNES Y maps to GBA Y
+@=========================================================================
+bgYOffset:
+
+    .byte 0x00,0x01,0x01,0x02,0x03,0x04,0x04,0x05,0x06,0x06,0x07,0x08,0x09,0x09,0x0a,0x0b
+    .byte 0x0b,0x0c,0x0d,0x0e,0x0e,0x0f,0x10,0x10,0x11,0x12,0x13,0x13,0x14,0x15,0x15,0x16
+    .byte 0x17,0x18,0x18,0x19,0x1a,0x1a,0x1b,0x1c,0x1d,0x1d,0x1e,0x1f,0x1f,0x20,0x21,0x22
+    .byte 0x22,0x23,0x24,0x24,0x25,0x26,0x27,0x27,0x28,0x29,0x29,0x2a,0x2b,0x2c,0x2c,0x2d
+    .byte 0x2e,0x2e,0x2f,0x30,0x31,0x31,0x32,0x33,0x33,0x34,0x35,0x36,0x36,0x37,0x38,0x38
+    .byte 0x39,0x3a,0x3b,0x3b,0x3c,0x3d,0x3d,0x3e,0x3f,0x40,0x40,0x41,0x42,0x42,0x43,0x44
+    .byte 0x45,0x45,0x46,0x47,0x47,0x48,0x49,0x4a,0x4a,0x4b,0x4c,0x4c,0x4d,0x4e,0x4f,0x4f
+    .byte 0x50,0x51,0x51,0x52,0x53,0x54,0x54,0x55,0x56,0x56,0x57,0x58,0x59,0x59,0x5a,0x5b
+    .byte 0x5b,0x5c,0x5d,0x5e,0x5e,0x5f,0x60,0x60,0x61,0x62,0x63,0x63,0x64,0x65,0x65,0x66
+    .byte 0x67,0x68,0x68,0x69,0x6a,0x6a,0x6b,0x6c,0x6d,0x6d,0x6e,0x6f,0x6f,0x70,0x71,0x72
+    .byte 0x72,0x73,0x74,0x74,0x75,0x76,0x77,0x77,0x78,0x79,0x79,0x7a,0x7b,0x7c,0x7c,0x7d
+    .byte 0x7e,0x7e,0x7f,0x80,0x81,0x81,0x82,0x83,0x83,0x84,0x85,0x86,0x86,0x87,0x88,0x88
+    .byte 0x89,0x8a,0x8b,0x8b,0x8c,0x8d,0x8d,0x8e,0x8f,0x90,0x90,0x91,0x92,0x92,0x93,0x94
+    .byte 0x95,0x95,0x96,0x97,0x97,0x98,0x99,0x9a,0x9a,0x9b,0x9c,0x9c,0x9d,0x9e,0x9f,0x9f
+    .byte 0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f
+    .byte 0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f,0x9f
+    .byte 0x9f,0x9f,0x9f,0x9f,0x9f,0x9f
 
 @=========================================================================
 @ memory mapping table

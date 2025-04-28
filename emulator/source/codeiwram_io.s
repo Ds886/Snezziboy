@@ -1,6 +1,6 @@
 /*
 -------------------------------------------------------------------
-Snezziboy v0.22
+Snezziboy v0.23
 
 Copyright (C) 2006 bubble2k
 
@@ -16,18 +16,14 @@ GNU General Public License for more details.
 -------------------------------------------------------------------
 */
 
-
-
 @=========================================================================
-@ IO routines
+@ for easy porting
 @=========================================================================
 
-@-------------------------------------------------------------------------
-@ No IO operation
-@-------------------------------------------------------------------------
-IONOP:
-    mov     r1, #0                    
-    bx      lr
+    .equ    bgOffsetRAMBase,    0x02031000
+    .equ    snesWramBase,       0x02000000
+    .equ    snesVramBase,       0x02020000
+    .equ    gbaVramBase,        0x06000000
 
 
 @=========================================================================
@@ -60,90 +56,154 @@ hblankInterrupt:
     mov     r1, #0x2
     strh    r1, [r0]
 
-    tsts    r1, #0x01               @ v-blank interrupt
-    bxne    lr                      @ return if in v-blank
-
     ldr     r0, =0x04000006
-    ldrh    r0, [r0]
-    ldrb    r2, gbaFCount
-    and     r2, r2, #1
-    add     r2, r2, r0              @ for flickering
+    ldrh    r0, [r0]                @ r0 = GBA vertical count
+    cmp     r0, #162
+    bxge    lr
+    
+    ldr     r1, =bgOffset
+    add     r1, r1, r0, lsl #1
+    ldrh    r1, [r1]                @ r1 = frame number that the BG OFS was set
+    ldr     r2, bgOffsetPrevFrame   @ r0 = previous frame number
+    cmp     r1, r2                  @ if they match, copy all BG OFS
+    beq     hblankInterrupt_CopyBGOFS
+    ldr     r2, bgOffsetCurrFrame   @ r0 = current frame number
+    cmp     r1, r2                  @ if they match, copy all BG OFS
+    beq     hblankInterrupt_CopyBGOFS
 
+    @ here we determine the vertical offset,
+    @ which we use to scale the screen
+    @
     ldr     r1, =yOffset
+    ldrb    r2, gbaFCount
+    add     r2, r2, r0              @ r2 = adjusted GBA vertical count in order
+                                    @ to flicker the scaled background
+                                    
     ldrsb   r0, [r1, r2]            @ r1 = horizontal offset for all backgrounds.
     add     r2, r2, #1
     ldrsb   r1, [r1, r2]            
     cmp     r1, r0
     bxeq    lr                      @ branch away to be faster
+    
+    ldr     pc, scaleAddress
 
-    ldr     r3, =(regBG1VOffsetB-2)
+hblankInterrupt_ScaleNonMode7:
+    @ do vertical scaling for non-mode 7 backgrounds
+    ldr     r3, =(regBG1VOffsetB)
     ldr     r2, =0x04000012         @ do vertical scaling for all backgrounds.
 
-    ldrh    r0, [r3, #2]
+    ldrh    r0, [r3], #4            @ and update the GBA H/V OFS
     add     r0, r0, r1
-    bic     r0, r0, #0xfe00
-    strh    r0, [r2]
+    strh    r0, [r2], #4
 
-    ldrh    r0, [r3, #6]
+    ldrh    r0, [r3], #4
     add     r0, r0, r1
-    bic     r0, r0, #0xfe00
-    strh    r0, [r2, #4]
+    strh    r0, [r2], #4
 
-    ldrh    r0, [r3, #10]
+    ldrh    r0, [r3], #4
     add     r0, r0, r1
-    bic     r0, r0, #0xfe00
-    strh    r0, [r2, #8]
-
+    strh    r0, [r2], #4
     bx      lr
 
+hblankInterrupt_ScaleMode7:
+    @ do vertical scaling for mode 7 backgrounds
+    @
+    ldr     r3, =0x04000028
+    ldr     r2, =0x04000006
+    ldrh    r2, [r2]
+    add     r1, r2, r1
+    
+    ldr     r0, mode7dx
+    mul     r2, r0, r1
+    ldr     r0, mode7x
+    add     r2, r0, r2
+    str     r2, [r3], #4
+
+    ldr     r0, mode7dy
+    mul     r2, r0, r1
+    ldr     r0, mode7y
+    add     r2, r0, r2
+    str     r2, [r3], #4
+    bx      lr
+    
+hblankInterrupt_CopyBGOFS:
+    
+    stmfd   sp!, {r0}       
+    ldr     r2, =bgOffsetRAMBase
+    add     r0, r2, r0, lsl #4
+    ldr     r1, =regBG1HOffsetB             @ r2 = BG offset in IWRAM
+    ldr     r3, =0x04000010
+    
+    @ copy 8 times, for all V/H of 4 backgrounds
+    @
+    @ BG 1
+    ldrh    r2, [r0], #2                    @ horizontal offsets
+    add     r2, r2, #8
+    strh    r2, [r1], #2
+    strh    r2, [r3], #4
+    
+    ldrh    r2, [r0], #2                    @ vertical offsets
+    strh    r2, [r1], #2
+    
+    @ BG 2
+    ldrh    r2, [r0], #2
+    add     r2, r2, #8
+    strh    r2, [r1], #2
+    strh    r2, [r3], #4
+    
+    ldrh    r2, [r0], #2
+    strh    r2, [r1], #2
+    
+    @ BG 3
+    ldrh    r2, [r0], #2
+    add     r2, r2, #8
+    strh    r2, [r1], #2
+    strh    r2, [r3], #4
+    
+    ldrh    r2, [r0], #2
+    strh    r2, [r1], #2
+    
+    @ BG 4
+/*  
+    ldrh    r2, [r0], #2
+    add     r2, r2, #8
+    strh    r2, [r1], #2
+    str     r2, [r3], #4
+    
+    ldrh    r2, [r0], #2
+    strh    r2, [r1], #2
+*/
+    ldrh    r2, [r0], #2
+    ldmfd   sp!, {r0}
+    
+    ldr     r1, =yOffset
+    ldrb    r2, gbaFCount
+    add     r2, r2, r0              @ r2 = adjusted GBA vertical count in order
+                                    @ to flicker the scaled background
+    add     r2, r2, #1
+    ldrsb   r1, [r1, r2]            
+    ldr     pc, scaleAddress
+
+scaleAddress:   .word   hblankInterrupt_ScaleNonMode7
 
 @-------------------------------------------------------------------------
 @ GBA vertical blank
 @-------------------------------------------------------------------------
 vblankInterrupt:
     ldrb    r2, gbaFCount           @ flip the frame-counter
-    add     r2, r2, #1
+    eor     r2, r2, #1
     strb    r2, gbaFCount
 
     mov     r1, #0x1
     strh    r1, [r0]
 
-    @ldrb    r1, gbaVBlankFlag
-    @cmp     r1, #4
-    @addlt   r1, r1, #1
     mov     r1, #1
     strb    r1, gbaVBlankFlag       @ set the vertical blank for syncing
 
     bx      lr
 
 
-@=========================================================================
-@ SAVE RAM Input/Output
-@=========================================================================
-R_SAV:
-    mov     r1, #0
-    ldr     r2, =SaveRAMMask
-    ldr     r2, [r2]
-    cmp     r2, #0
-    bxeq    lr
-
-    and     r0, r0, r2
-    add     r0, r0, #0x0e000000
-    ldrb    r1, [r0]
-    
-    bx      lr
-
-W_SAV:
-    ldr     r2, =SaveRAMMask
-    ldr     r2, [r2]
-    cmp     r2, #0
-    bxeq    lr
-    
-    and     r0, r0, r2
-    add     r0, r0, #0x0e000000
-    strb    r1, [r0]
-
-    bx      lr
+    .ltorg
 
 @=========================================================================
 @ Non-Maskable Interrupts
@@ -239,7 +299,13 @@ R4212:
     ldr     r2, vBlankScan
     ldr     r0, VerticalCount
     cmp     r0, r2
-    orrge   r1, r1, #0x80
+    orrge   r1, r1, #0x81
+    
+    @ version 0.23 fix
+    @
+    add     r2, r2, #3
+    cmp     r0, r2
+    bicge   r1, r1, #0x01
 
     cmp     SnesCYCLES, #((CYCLES_HBLANK-CYCLES_PER_SCANLINE) << CYCLE_SHIFT)
     orrge   r1, r1, #0x40
@@ -457,431 +523,6 @@ HDMA_WriteJump2:
     .long   HDMA_Write_0000, HDMA_Write_0101, HDMA_Write_0000, HDMA_Write_0011
     .long   HDMA_Write_0123, HDMA_Write_0101, HDMA_Write_0000, HDMA_Write_0011
 */
-
-@=========================================================================
-@ DMA
-@=========================================================================
-regDMAControl:      .byte 0,0,0,0,0,0,0,0       
-regDMADest:         .byte 0,0,0,0,0,0,0,0
-regDMASourceL:       
-    .byte   0
-regDMASourceH:
-    .byte   0
-regDMASourceB:
-    .byte   0
-    .byte   0
-    
-    .rept   28
-    .byte   0
-    .endr
-regDMASizeL:         
-    .byte   0
-regDMASizeH:
-    .byte   0
-regHDMAIndAddressB:
-    .byte   0
-    .byte   0
-
-    .rept   28
-    .byte   0
-    .endr
-
-regHDMAAddressL:     
-    .byte   0
-regHDMAAddressH:
-    .byte   0
-
-    .rept   14
-    .byte   0
-    .endr
-
-regHDMAGBAAddress:
-    .rept   8
-    .word   0
-    .endr
-
-regHDMALinecounter:     
-    .byte  0,0,0,0,0,0,0,0
-
-regHDMAVcounter:     
-    .byte  0,0,0,0,0,0,0,0
-
-@-------------------------------------------------------------------------
-@ Some DMA macros
-@-------------------------------------------------------------------------
-.macro movpc reg
-    .ifeq \reg-0
-        mov pc, r9
-    .endif
-    .ifeq \reg-1
-        mov pc, r10
-    .endif
-    .ifeq \reg-2
-        mov pc, r11
-    .endif
-    .ifeq \reg-3
-        mov pc, r12
-    .endif
-.endm
-
-.macro dmaWrite r1, r2, r3, r4
-    .ifeq (\r1+\r2+\r3+\r4)-0
-        ldmia   r3!, {r9}
-    .endif
-    .ifeq (\r1+\r2+\r3+\r4)-2
-        ldmia   r3!, {r9, r10}
-    .endif
-    .ifeq (\r1+\r2+\r3+\r4)-6
-        ldmia   r3!, {r9-r12}
-    .endif
-1:
-    ldrb    r1, [r6], r5
-    mov     lr, pc
-    movpc   \r1
-    subs    r4, r4, #0x00010000
-    beq     DMA_NextChannel
-
-    ldrb    r1, [r6], r5                
-    mov     lr, pc
-    movpc   \r2
-    subs    r4, r4, #0x00010000
-    beq     DMA_NextChannel
-
-    ldrb    r1, [r6], r5
-    mov     lr, pc
-    movpc   \r3
-    subs    r4, r4, #0x00010000
-    beq     DMA_NextChannel
-
-    ldrb    r1, [r6], r5
-    mov     lr, pc
-    movpc   \r4
-    subs    r4, r4, #0x00010000
-    beq     DMA_NextChannel
-
-    b       1b
-.endm
-
-.macro dmaRead r1, r2, r3, r4
-    .ifeq (\r1+\r2+\r3+\r4)-0
-        ldmia   r3!, {r9}
-    .endif
-    .ifeq (\r1+\r2+\r3+\r4)-2
-        ldmia   r3!, {r9, r10}
-    .endif
-    .ifeq (\r1+\r2+\r3+\r4)-6
-        ldmia   r3!, {r9-r12}
-    .endif
-1:
-    mov     lr, pc
-    movpc   \r1
-    strb    r1, [r6], r5
-    subs    r4, r4, #0x00010000
-    beq     DMA_NextChannel
-
-    mov     lr, pc
-    movpc   \r2
-    strb    r1, [r6], r5
-    subs    r4, r4, #0x00010000
-    beq     DMA_NextChannel
-
-    mov     lr, pc
-    movpc   \r3
-    strb    r1, [r6], r5
-    subs    r4, r4, #0x00010000
-    beq     DMA_NextChannel
-
-    mov     lr, pc
-    movpc   \r4
-    strb    r1, [r6], r5
-    subs    r4, r4, #0x00010000
-    beq     DMA_NextChannel
-
-    b       1b
-.endm
-
-
-@-------------------------------------------------------------------------
-@ 0x420B DMA Enable
-@   76543210    (channels)
-@-------------------------------------------------------------------------
-regDMACycles:   .word   0
-regDMAEnable:   .byte   0
-regHDMAEnable:  .byte   0
-regHDMAEnable2: .byte   0
-                .byte   0
-
-W420B:
-    strb    r1, regDMAEnable
-    stmfd   sp!, {r3-r12, lr}
-    mov     r2, #0
-    str     r2, regDMACycles
-    mov     r8, #-1
-
-DMA_Setup:
-    @ set up the DMA transfer
-    @
-    ldrb    r1, regDMAEnable
-    add     r8, r8, #1
-    tsts    r1, #0xff
-    beq     DMA_End
-    
-    movs    r1, r1, lsr #1
-    strb    r1, regDMAEnable
-    bcc     DMA_Setup
-
-    ldr     r0, =regDMAControl
-    ldrb    r0, [r0, r8]
-    tsts    r0, #0x10
-    movne   r5, #-1
-    moveq   r5, #1
-    tsts    r0, #0x08
-    movne   r5, #0                      @ r5, increment/decrement register
-    tsts    r0, #0x80                   @ cpsr = read or write?
-
-    and     r7, r0, #0x7                @ r7 is now the transfer mode
-    ldr     r0, =regDMADest
-    ldrb    r4, [r0, r8]                
-    add     r4, r4, #0x2100             
-    ldreq   r3, =IOWrite                 
-    ldrne   r3, =IORead
-    add     r3, r3, r4, lsl #2          @ r3 = decoder address for DMA Dest
-
-    ldr     r0, =regDMASourceL
-    ldr     r0, [r0, r8, lsl #2]        
-
-    TranslateAddressDMA
-
-    mov     r6, r0                      @ r6 = GBA effective address
-
-    ldr     r4, =regDMASizeL
-    ldr     r4, [r4, r8, lsl #2]        @ r4 = 00000000 ????????? ssssssss ssssssss (DMA transfer size)
-    mov     r4, r4, lsl #16             @ r4 = ssssssss sssssssss 00000000 00000000 (DMA transfer size)
-    
-    ldr     r2, regDMACycles
-    add     r2, r2, #(4<<CYCLE_SHIFT)   @ overhead per channel
-    add     r2, r2, r4                  @ r2 = stores the cycles used for the DMA transfer
-    str     r2, regDMACycles
-
-    ldreq   r0, =DMA_WriteJump          @ write
-    ldrne   r0, =DMA_ReadJump           @ read
-    ldr     pc, [r0, r7, lsl #2]        @ jump to the appropriate DMA transfer mode
-
-    @ version 0.22 fix
-    @ updates the DMA source address
-
-DMA_NextChannel:
-    @ increment the DMA register here
-    @
-    ldr     r5, =regDMASizeL
-    add     r5, r5, r8, lsl #2
-    mov     r6, #0
-    ldrh    r4, [r5]
-    bic     r4, r4, #0x00ff0000         @ r4 = 00000000 00000000 ssssssss ssssssss (DMA transfer size)
-    strh    r6, [r5]
-    
-    ldr     r5, =regDMASourceL
-    add     r5, r5, r8, lsl #2
-    ldrh    r6, [r5]                    
-    add     r6, r6, r4
-    strh    r6, [r5]
-    
-    b       DMA_Setup
-
-DMA_End:
-    ldmfd   sp!, {r3-r12, lr}
-    
-    ldr     r2, regDMACycles
-    add     SnesCYCLES, SnesCYCLES, r2
-    bx      lr
-
-DMA_Write_0000:
-    dmaWrite    0, 0, 0, 0
-
-DMA_Write_0011:
-    dmaWrite    0, 0, 1, 1
-
-DMA_Write_0101:
-    dmaWrite    0, 1, 0, 1
-
-DMA_Write_0123:
-    dmaWrite    0, 1, 2, 3
-
-DMA_WriteJump:
-    .long   DMA_Write_0000, DMA_Write_0101, DMA_Write_0000, DMA_Write_0011
-    .long   DMA_Write_0123, DMA_Write_0101, DMA_Write_0000, DMA_Write_0011
-
-DMA_Read_0000:
-    dmaRead    0, 0, 0, 0
-
-DMA_Read_0011:
-    dmaRead    0, 0, 1, 1
-
-DMA_Read_0101:
-    dmaRead    0, 1, 0, 1
-
-DMA_Read_0123:
-    dmaRead    0, 1, 2, 3
-
-DMA_ReadJump:
-    .long   DMA_Read_0000, DMA_Read_0101, DMA_Read_0000, DMA_Read_0011
-    .long   DMA_Read_0123, DMA_Read_0101, DMA_Read_0000, DMA_Read_0011
-
-@-------------------------------------------------------------------------
-@ 0x420C HDMA Enable
-@   76543210    (channels)
-@-------------------------------------------------------------------------
-W420C:
-    strb    r1, regHDMAEnable
-    tsts    r1, #0xff
-    /*biceq   SnesIRQ, SnesIRQ, #IRQ_HDMA
-    orrne   SnesIRQ, SnesIRQ, #IRQ_HDMA*/
-    bx      lr
-
-.macro  GetDMAChannel
-    mov     r0, r0, lsr #4
-    and     r0, r0, #0x7
-.endm
-
-@-------------------------------------------------------------------------
-@ DMA Write
-@-------------------------------------------------------------------------
-W43x0:
-    GetDMAChannel
-    ldr     r2, =regDMAControl
-    strb    r1, [r2, r0]
-    bx      lr
-
-W43x1:
-    GetDMAChannel
-    ldr     r2, =regDMADest
-    strb    r1, [r2, r0]
-    bx      lr
-
-W43x2:
-    GetDMAChannel
-    ldr     r2, =regDMASourceL
-    strb    r1, [r2, r0, lsl #2]
-    bx      lr
-
-W43x3:
-    GetDMAChannel
-    ldr     r2, =regDMASourceH
-    strb    r1, [r2, r0, lsl #2]
-    bx      lr
-
-W43x4:
-    GetDMAChannel
-    ldr     r2, =regDMASourceB
-    strb    r1, [r2, r0, lsl #2]
-    bx      lr
-
-W43x5:
-    GetDMAChannel
-    ldr     r2, =regDMASizeL
-    strb    r1, [r2, r0, lsl #2]
-    bx      lr
-
-W43x6:
-    GetDMAChannel
-    ldr     r2, =regDMASizeH
-    strb    r1, [r2, r0, lsl #2]
-    bx      lr
-
-W43x7:
-    GetDMAChannel
-    ldr     r2, =regHDMAIndAddressB
-    strb    r1, [r2, r0, lsl #2]
-    bx      lr
-
-W43x8:
-    GetDMAChannel
-    ldr     r2, =regHDMAAddressL
-    strb    r1, [r2, r0, lsl #1]
-    bx      lr
-
-W43x9:
-    GetDMAChannel
-    ldr     r2, =regHDMAAddressH
-    strb    r1, [r2, r0, lsl #1]
-    bx      lr
-
-W43xA:
-    GetDMAChannel
-    ldr     r2, =regHDMALinecounter
-    strb    r1, [r2, r0]
-    bx      lr
-
-
-@-------------------------------------------------------------------------
-@ DMA Read
-@-------------------------------------------------------------------------
-R43x0:
-    GetDMAChannel
-    ldr     r2, =regDMAControl
-    ldrb    r1, [r2, r0]
-    bx      lr
-
-R43x1:
-    GetDMAChannel
-    ldr     r2, =regDMADest
-    ldrb    r1, [r2, r0]
-    bx      lr
-
-R43x2:
-    GetDMAChannel
-    ldr     r2, =regDMASourceL
-    ldrb    r1, [r2, r0, lsl #2]
-    bx      lr
-
-R43x3:
-    GetDMAChannel
-    ldr     r2, =regDMASourceH
-    ldrb    r1, [r2, r0, lsl #2]
-    bx      lr
-
-R43x4:
-    GetDMAChannel
-    ldr     r2, =regDMASourceB
-    ldrb    r1, [r2, r0, lsl #2]
-    bx      lr
-
-R43x5:
-    GetDMAChannel
-    ldr     r2, =regDMASizeL
-    ldrb    r1, [r2, r0, lsl #2]
-    bx      lr
-
-R43x6:
-    GetDMAChannel
-    ldr     r2, =regDMASizeH
-    ldrb    r1, [r2, r0, lsl #2]
-    bx      lr
-
-R43x7:
-    GetDMAChannel
-    ldr     r2, =regHDMAIndAddressB
-    ldrb    r1, [r2, r0, lsl #2]
-    bx      lr
-
-R43x8:
-    GetDMAChannel
-    ldr     r2, =regHDMAAddressL
-    ldrb    r1, [r2, r0, lsl #1]
-    bx      lr
-
-R43x9:
-    GetDMAChannel
-    ldr     r2, =regHDMAAddressH
-    ldrb    r1, [r2, r0, lsl #1]
-    bx      lr
-
-R43xA:
-    GetDMAChannel
-    ldr     r2, =regHDMALinecounter
-    ldrb    r1, [r2, r0]
-    bx      lr
-
     .ltorg
 
 NMIaddress:         .word   0
@@ -890,6 +531,202 @@ BRKaddress:         .word   0
 IRQaddress:         .word   0
 
 vblankFlag:         .word   0
+codeRenderMode7Reg: .word   0
+
+@=========================================================================
+@ SNES Rendering the screen at scanline = vblank
+@ version 0.23 fix
+@=========================================================================
+snesRenderScreenAtVBlank:
+    stmfd   sp!, {lr}
+
+    @---------------------------------
+    @ enabled/disable BGs and OBJs
+    @---------------------------------
+    @ version 0.23 
+    @
+    @ added so to take into account mid-frame BG enable/disable changes
+    @ (we take the union of all enabled BGs per frame)
+    @
+    ldrb    r1, regMainScreen
+    cmp     r1, #0x80
+    ldreqb  r1, regMainScreenCopy2
+    strneb  r1, regMainScreenCopy2
+    
+    ldrb    r2, regSubScreen
+    cmp     r2, #0x80
+    ldreqb  r2, regSubScreenCopy2
+    strneb  r2, regSubScreenCopy2
+    orr     r1, r1, r2
+    
+    ldrb    r0, regBGMode
+snesRenderScreenAtVBlank_ForceMode:
+    and     r0, r0, #0x7
+    ldr     r2, =bgMask
+    ldrb    r2, [r2, r0]
+    cmp     r0, #7
+    blt     snesRenderScreenAtVBlank_NotMode7
+    
+    @ mode 7
+    orr     r0, r1, #0x01
+    orr     r1, r1, r0, lsl #2
+    ldr     r0, =hblankInterrupt_ScaleMode7
+    str     r0, scaleAddress
+    ldr     r0, codeRenderMode7Reg
+    b       snesRenderScreenAtVBlank_Continue
+    
+snesRenderScreenAtVBlank_NotMode7:
+    ldr     r0, =hblankInterrupt_ScaleNonMode7
+    str     r0, scaleAddress
+    mov     r0, #0
+    
+snesRenderScreenAtVBlank_Continue:
+    str     r0, snesRenderScreen_RenderMode7Reg
+    and     r1, r1, r2
+    
+    @ version 0.23 
+    @ added so that we do not have to store special 4 color palettes
+    @
+    tst     r0, #2                  @ test for modes 2, 3, 6, 7 (these modes do not have 4 color backgrounds)
+    ldreq   r0, codeCGRAMHas4color1
+    ldrne   r0, codeCGRAMNo4color1
+    str     r0, W2122_4colors1
+    ldreq   r0, codeCGRAMHas4color2
+    ldrne   r0, codeCGRAMNo4color2
+    str     r0, W2122_4colors2
+
+    @ write the enabled BGS to the
+    @ GBA DISPCNT
+    @    
+    ldr     r2, =0x04000000
+    ldrh    r0, [r2]
+    bic     r0, r0, #0x1f00
+    orr     r0, r0, r1, lsl #8
+    strh    r0, [r2]
+
+    @---------------------------------
+    @ Fading
+    @---------------------------------
+    @ version 0.23 
+    @ fixed to use the brightest color per frame
+    @
+    ldrb    r1, regInitDisp
+    cmp     r1, #0x70
+    ldreqb  r1, regInitDispPrev
+    strb    r1, regInitDispPrev
+    mov     r0, #0x70
+    strb    r0, regInitDisp
+    tsts    r1, #0x80
+    movne   r1, #0
+
+    @---------------------------------
+    @ Color Math
+    @---------------------------------
+    @
+    ldr     r2, =0x04000050
+    mov     r0, #0xff
+    strh    r0, [r2]
+    and     r1, r1, #0x0F
+    rsb     r1, r1, #0x0F
+    strh    r1, [r2, #4]
+
+    cmp     r1, #0x0                    @ is it full brightness?
+    bne     vBlankColorMathSkip
+
+    stmfd   sp!, {r3-r5}
+    ldrb    r1, regColorMath            @ if full brightness, restore any color math
+    mov     r3, r1
+    ands    r3, r3, #0x3f
+    beq     vBlankColorMathNoBlend
+
+    ldrb    r5, regSubScreen
+
+    orr     r5, r5, r3, lsl #8
+    @orr     r5, r5, #(1<<6)
+    ldr     r0, =0x04000050
+    strh    r5, [r0]
+
+    tsts    r1, #0x40
+    ldrne   r2, =0x00000707
+    ldreq   r2, =0x00000F0F
+    ldr     r0, =0x04000052
+    strh    r2, [r0]
+    b       vBlankColorMathEnd
+
+vBlankColorMathNoBlend:
+    mov     r2, #0xFF
+    ldr     r0, =0x04000050
+    strh    r2, [r0]
+
+vBlankColorMathEnd:
+    ldmfd   sp!, {r3-r5}
+    
+vBlankColorMathSkip:    
+
+    @---------------------------------
+    @ copy backdrop color
+    @---------------------------------
+    ldr     r0, =configBackdrop
+    ldrb    r0, [r0]
+    cmp     r0, #1
+    bne     renderScreen_SkipBackDrop
+    ldr     r0, regBackDrop
+    ldr     r1, =0x05000000
+    strh    r0, [r1]
+renderScreen_SkipBackDrop:
+
+    @---------------------------------
+    @ Render Frame
+    @---------------------------------
+    ldr     r1, =configBGEnable
+    ldrb    r1, [r1]
+    tsts    r1, r1
+    ldreq   r0, =regMainScreen
+    ldreqh  r1, [r0]
+    streqh  r1, [r0, #-2]           @ forces the screen to refresh
+    
+    ldr     r0, screenPrev1
+    ldr     r1, screenCurr1
+    cmp     r0, r1
+    bne     vBlankRefreshScreen
+
+    ldr     r0, screenPrev2
+    ldr     r1, screenCurr2
+    cmp     r0, r1
+    bne     vBlankRefreshScreen
+
+    ldr     r0, screenPrev3
+    ldr     r1, screenCurr3
+    cmp     r0, r1
+    bne     vBlankRefreshScreen
+    
+    @ otherwise, don't refresh and return
+    @
+    b       snesRenderEnd
+
+vBlankRefreshScreen:
+    ldr     r0, screenCurr1
+    str     r0, screenPrev1
+    ldr     r0, screenCurr2
+    str     r0, screenPrev2
+    ldr     r0, screenCurr3
+    str     r0, screenPrev3
+
+    ldrb    r0, regBGMode
+vBlankRefreshScreen_ForceMode:
+    and     r0, r0, #0x7
+    ldr     r1, =ModeRender
+    ldr     pc, [r1, r0, lsl #2]
+
+    @------------------------------------
+    @ clear the main screen flags
+    @------------------------------------
+snesRenderEnd:
+    mov     r0, #0x80
+    strb    r0, regMainScreen
+    strb    r0, regSubScreen
+    ldmfd   sp!, {pc}
+
 
 @=========================================================================
 @ keypad stuff
@@ -901,18 +738,56 @@ regJoyX:	        .hword	0xffff
 regJoyY:	        .hword	0xffff
 
 bgMask:     .byte   0x1f, 0x17, 0x13, 0x13
-            .byte   0x13, 0x13, 0x11, 0x11
+            .byte   0x13, 0x13, 0x14, 0x14
+
+mode7x:     .word   0
+mode7y:     .word   0
+mode7dx:    .word   0
+mode7dy:    .word   0
 
 .equ	snesJoyA, 0x0080
 .equ	snesJoyB, 0x8000
 .equ	snesJoyX, 0x0040
 .equ	snesJoyY, 0x4000
 
+
 @=========================================================================
 @ SNES Rendering the screen at scanline = 0
 @=========================================================================
-
 snesRenderScreen:
+    stmfd   sp!, {lr}
+    
+    @---------------------------------
+    @ Compute and copy the mode 7 
+    @ registers
+    @---------------------------------
+snesRenderScreen_RenderMode7Reg:
+    bl      snesRenderCopyMode7
+
+    @---------------------------------
+    @ increment the frame number
+    @---------------------------------
+    ldr     r0, bgOffsetCurrFrame
+    str     r0, bgOffsetPrevFrame
+    adds    r0, r0, #1
+    bics    r0, r0, #0x00ff0000
+    str     r0, bgOffsetCurrFrame
+    bne     1f
+    
+    stmfd   sp!, {r3}
+    ldr     r3, =0x0000ffff
+    moveq   r0, #1
+    str     r0, bgOffsetCurrFrame
+    mov     r1, #160
+snesRenderScreen_ClearFrameNumbers:
+    ldrh    r2, [r0], #2
+    cmp     r2, r3
+    moveq   r2, #0x0000
+    strh    r2, [r0, #-2]
+    subs    r1, r1, #1
+    bne     snesRenderScreen_ClearFrameNumbers
+    ldmfd   sp!, {r3}
+1:
 
     @---------------------------------
 	@ Read and map the GBA key pad 
@@ -947,90 +822,26 @@ snesRenderScreen:
     @---------------------------------
     ldr     r0, =0x04000130      
 	ldrh    r0, [r0]
-	ldr		r1, =( (1<<3) + (1<<8) + (1<<9) )
-	tsts	r0, r1
+	tsts	r0, #(1<<8) + (1<<9)        @ L + R
 	bne		renderScreen
 
     @---------------------------------
     @ branch to the configuration 
-	@ screen routine
     @---------------------------------
-	stmfd	sp!, {lr}
-    mov     lr, pc
-    ldr     pc, =configScreen
-	ldmfd	sp!, {lr}
+    mov     r1, #0
+    tsts    r0, #(1<<3)                 @ start
+    ldreq   r1, =configScreen
+    tsts    r0, #(1<<2)+(1<<6)          @ select+UP
+    ldreq   r1, =configCycleBGPriority
+    tsts    r0, #(1<<2)+(1<<7)          @ select+DOWN
+    ldreq   r1, =configCycleBGForcedMode
+    tsts    r1, r1
+    beq     renderScreen
+    
+	mov     lr, pc
+	bx      r1
 
 renderScreen:
-
-    @---------------------------------
-    @ enabled/disable BGs and OBJs
-    @---------------------------------
-    ldrb    r1, regMainScreen
-    ldrb    r2, regSubScreen
-    orr     r1, r1, r2
-    
-    ldr     r2, regBGMode
-    and     r2, r2, #0x7
-    ldr     r0, =bgMask
-    ldrb    r0, [r0, r2]
-    and     r1, r1, r0
-    
-    ldr     r2, =0x04000000 
-    ldrh    r0, [r2]
-    bic     r0, r0, #0x1f00
-    orr     r0, r0, r1, lsl #8
-    strh    r0, [r2]
-    
-    @---------------------------------
-    @ copy backdrop color
-    @---------------------------------
-    ldr     r0, =configBackdrop
-    ldrb    r0, [r0]
-    cmp     r0, #1
-    bne     1f
-    ldr     r0, regBackDrop
-    ldr     r1, =0x05000000
-    strh    r0, [r1]
-1:
-
-    @---------------------------------
-    @ copy v offsets
-    @---------------------------------
-    ldr     r1, =regBG1VOffsetB
-    ldrh    r0, [r1, #2]
-    strh    r0, [r1], #4
-    ldrh    r0, [r1, #2]
-    strh    r0, [r1], #4
-    ldrh    r0, [r1, #2]
-    strh    r0, [r1], #4
-    ldrh    r0, [r1, #2]
-    strh    r0, [r1], #4
-
-    @---------------------------------
-    @ copy all BG's HOffset
-    @---------------------------------
-    ldr     r0, =0x04000010
-    ldr     r1, =regBG1HOffsetWord
-    
-    ldrh    r2, [r1, #2]
-    add     r2, r2, #8                  @ do not add 8 for DS
-    bic     r2, r2, #0xfe00
-    strh    r2, [r0]
-
-    ldrh    r2, [r1, #6]
-    add     r2, r2, #8                  @ do not add 8 for DS
-    bic     r2, r2, #0xfe00
-    strh    r2, [r0, #4]
-
-    ldrh    r2, [r1, #10]
-    add     r2, r2, #8                  @ do not add 8 for DS
-    bic     r2, r2, #0xfe00
-    strh    r2, [r0, #8]
-
-    ldrh    r2, [r1, #14]
-    add     r2, r2, #8                  @ do not add 8 for DS
-    bic     r2, r2, #0xfe00
-    strh    r2, [r0, #12]
 
     @---------------------------------
     @ copy SNES sprites to GBA
@@ -1041,27 +852,19 @@ renderScreen:
     beq     vblankSkipSpritesAltogether
 
     stmfd   sp!, {r3-r12, r14}      
-    ldr     r1, =(oamBase-16)
-    ldr     r2, =(oamBase+512-1)
-    ldr     r12, =(0x07000000-32)
+    ldr     r1, =(oamBase)
+    ldr     r2, =(oamBase+512)
+    ldr     r12, =(0x07000000)
     ldr     r7, =oamX
     ldr     r8, =oamY
     ldr     r9, =oamControl
-    mov     r6, #132
+    mov     r6, #128
     ldrb    r14, regObSel           @ r14 = ggg?????
     mov     r14, r14, lsr #5        @ r3 = 00000ggg
 
-vblankCopySpriteSkip:
-    add     r1, r1, #16
-    add     r2, r2, #1
-    add     r12, r12, #32
-    subs    r6, r6, #4
     beq     vblankCopySpriteEnd
 
 vblankCopySpriteLoop:
-    @movs    r0, r0, lsr #1
-    @bcc     vblankCopySpriteSkip
-
     ldrb    r4, [r2], #1            @ r4 = sXsXsXsX
 
 vblankCopySpriteSmallLoop:
@@ -1103,86 +906,63 @@ vblankCopySpriteEnd:
     str     r0, oamDirtyBit
 
 vblankSkipSpritesAltogether:
-    @---------------------------------
-    @ Fading/Color Math
-    @---------------------------------
     
-    ldrb    r1, regInitDisp
-    tsts    r1, #0x80
-    movne   r1, #0
+    ldmfd   sp!, {pc}
 
-    ldr     r2, =0x04000050
-    mov     r0, #0xff
-    strh    r0, [r2]
-    and     r1, r1, #0x0F
-    rsb     r1, r1, #0x0F
-    strh    r1, [r2, #4]
 
-    cmp     r1, #0x0                    @ is it full brightness?
-    bne     vBlankRenderFrame
+    .ltorg
 
-    stmfd   sp!, {r3-r5}
-    ldrb    r1, regColorMath            @ if full brightness, restore any color math
-    mov     r3, r1
-    ands    r3, r3, #0x3f
-    beq     vBlankColorMathNoBlend
 
-    ldrb    r5, regSubScreen
+@=========================================================================
+@ Mode 7 
+@ (code from Snes Advance)
+@=========================================================================
+snesRenderCopyMode7:
+    stmfd   sp!, {r0-r9}
+    ldr     r9, =regM7A
+	ldrsh   r0, [r9], #2
+	ldrsh   r1, [r9], #2
+	ldrsh   r2, [r9], #2
+	ldrsh   r3, [r9], #2
+	ldrh    r4, [r9], #2
+	ldrh    r5, [r9], #2
+	
+	mov     r4, r4, lsl#19
+	mov     r4, r4, asr#19
+	mov     r5, r5, lsl#19
+	mov     r5, r5, asr#19
+	ldr     r9, =regBG1HOffset
+	ldrsh   r7, [r9], #2
+	ldrsh   r8, [r9], #2
+	add     r7, r7, #8
 
-    orr     r5, r5, r3, lsl #8
-    ldr     r0, =0x04000050
-    strh    r5, [r0]
+	sub     r7, r7, r4	
+	sub     r8, r8, r5	
+	ldr     r9, =0x4000020
+	strh    r0, [r9], #2
+	strh    r1, [r9], #2
+	strh    r2, [r9], #2
+	strh    r3, [r9], #2
+	str     r1, mode7dx
+	str     r3, mode7dy
 
-    tsts    r1, #0x40
-    ldrne   r2, =0x00000707
-    ldreq   r2, =0x00000F0F
-    ldr     r0, =0x04000052
-    strh    r2, [r0]
-    b       vBlankColorMathEnd
+	mul     r0, r7, r0	
+	mul     r2, r7, r2	
+	add     r0, r0, r4, lsl#8
+	add     r2, r2, r5, lsl#8
+	mla     r1, r8, r1, r0	
+	mla     r3, r8, r3, r2	
+	str     r1, mode7x
+	str     r3, mode7y
+	ldmfd   sp!, {r0-r9}
+	bx      lr
 
-vBlankColorMathNoBlend:
-    mov     r2, #0xFF
-    ldr     r0, =0x04000050
-    strh    r2, [r0]
 
-vBlankColorMathEnd:
-    ldmfd   sp!, {r3-r5}
-
-vBlankRenderFrame:
-    @---------------------------------
-    @ Render Frame
-    @---------------------------------
-    ldr     r0, screenPrev1
-    ldr     r1, screenCurr1
-    cmp     r0, r1
-    bne     vBlankRefreshScreen
-
-    ldr     r0, screenPrev2
-    ldr     r1, screenCurr2
-    cmp     r0, r1
-    bne     vBlankRefreshScreen
-
-    ldr     r0, screenPrev3
-    ldr     r1, screenCurr3
-    cmp     r0, r1
-    bne     vBlankRefreshScreen
-    
-    @ otherwise, don't refresh and return
-    @
+@=========================================================================
+@ SNES Copy Sprites
+@=========================================================================
+vBlankCopySprites:
     bx      lr
-
-vBlankRefreshScreen:
-    ldr     r0, screenCurr1
-    str     r0, screenPrev1
-    ldr     r0, screenCurr2
-    str     r0, screenPrev2
-    ldr     r0, screenCurr3
-    str     r0, screenPrev3
-
-    ldrb    r0, regBGMode
-    and     r0, r0, #0x7
-    ldr     r1, =ModeRender
-    ldr     pc, [r1, r0, lsl #2]
 
 
 @=========================================================================
@@ -1192,22 +972,26 @@ vBlankRefreshScreen:
 regOAMAddrInternal: .word   0
 
 regInitDisp:        .byte   0
+regInitDispPrev:    .byte   0
 regMOSAIC:          .byte   0
 regOAMAddrLo:       .byte   0
 regOAMAddrHi:       .byte   0
+                    .byte   0
+                    .byte   0
+                    .byte   0
 
 screenPrev1:
                     .word   0
 screenCurr1:
 regBGMode:          .byte   0xff
 regObSel:           .byte   0
-                    .byte   0
+regMainScreenCopy:  .byte   0
                     .byte   0
                     
 regMainScreen:      .byte   0
 regSubScreen:       .byte   0
-                    .byte   0
-                    .byte   0
+regMainScreenCopy2: .byte   0
+regSubScreenCopy2:  .byte   0
 
 @-------------------------------------------------------------------------
 @ 0x2100 - INIDISP
@@ -1216,7 +1000,15 @@ regSubScreen:       .byte   0
 @   bbbb        = brightness
 @-------------------------------------------------------------------------
 W2100:
-    strb    r1, regInitDisp
+    @ version 0.23 fix, 
+    @ picks the highest brightness in any frame
+    @ to fix some of the games in which the screen is too dark 
+    @
+    ldrb    r0, regInitDisp
+    and     r0, r0, #0xf
+    and     r2, r1, #0xf
+    cmp     r2, r0
+    strgeb  r1, regInitDisp
     bx      lr
 
 @-------------------------------------------------------------------------
@@ -1355,23 +1147,23 @@ W2106:
     .equ        SCANLINE_BLANK,         225
     .equ        SCANLINE_BLANK_OSCAN,   241
 
+regBG1HOffsetB:     .hword  0
 regBG1VOffsetB:     .hword  0
-regBG1VOffset:      .hword  0
+regBG2HOffsetB:     .hword  0
 regBG2VOffsetB:     .hword  0
-regBG2VOffset:      .hword  0
+regBG3HOffsetB:     .hword  0
 regBG3VOffsetB:     .hword  0
-regBG3VOffset:      .hword  0
+regBG4HOffsetB:     .hword  0
 regBG4VOffsetB:     .hword  0
-regBG4VOffset:      .hword  0
 
-regBG1HOffsetWord:  .hword  0
 regBG1HOffset:      .hword  0
-regBG2HOffsetWord:  .hword  0
+regBG1VOffset:      .hword  0
 regBG2HOffset:      .hword  0
-regBG3HOffsetWord:  .hword  0
+regBG2VOffset:      .hword  0
 regBG3HOffset:      .hword  0
-regBG4HOffsetWord:  .hword  0
+regBG3VOffset:      .hword  0
 regBG4HOffset:      .hword  0
+regBG4VOffset:      .hword  0
 
 screenPrev2:
                     .word   0
@@ -1390,76 +1182,27 @@ regBG3NBA:          .byte   0
 regBG4NBA:          .byte   0
     
 @-------------------------------------------------------------------------
-@ 0x2107 - BG1SC - BG1 Tilemap Address and Size
-@ 0x2108 - BG1SC - BG1 Tilemap Address and Size
-@ 0x2109 - BG1SC - BG1 Tilemap Address and Size
-@ 0x210A - BG1SC - BG1 Tilemap Address and Size
-@   aaaaaayx
-@   aaaaaa      = Tilemap address in VRAM (Addr>>10)
-@   x           = Tilemap horizontal mirroring
-@   y           = Tilemap veritcal mirroring
-@-------------------------------------------------------------------------
-
-W2107:
-    strb    r1, regBG1SC
-    bx      lr
-
-W2108:
-    strb    r1, regBG2SC
-    bx      lr
-
-W2109:
-    strb    r1, regBG3SC
-    bx      lr
-
-W210A:
-    strb    r1, regBG4SC
-    bx      lr
-
-@-------------------------------------------------------------------------
-@ 0x210B - BG1/2NBA - BG1 and 2 Chr Address
-@ 0x210C - BG3/4NBA - BG3 and 4 Chr Address
-@   bbbbaaaa
-@   aaaa = Base address for BG1/3 (Addr>>13)
-@   bbbb = Base address for BG2/4 (Addr>>13)
-@-------------------------------------------------------------------------
-W210B:
-    and     r0, r1, #0x7
-    strb    r0, regBG1NBA
-
-    mov     r0, r1, lsr #4
-    and     r0, r0, #0x7
-    strb    r0, regBG2NBA
-    bx      lr
-
-W210C:
-    and     r0, r1, #0x7
-    strb    r0, regBG3NBA
-
-    mov     r0, r1, lsr #4
-    and     r0, r0, #0x7
-    strb    r0, regBG4NBA
-    bx      lr
-
-
-@-------------------------------------------------------------------------
-@ Generic macro to set BG HOFS/VOFS
-@   r0: offset from regBG1HOffset
+@ Function to set BG HOFS/VOFS
+@   r0: offset 
 @-------------------------------------------------------------------------
 WriteBGOFS:
-    ldrh    r2, [r0, #2]
+    ldrh    r2, [r0]
     mov     r2, r2, lsr #8
     orr     r2, r2, r1, lsl #8
-    strh    r2, [r0, #2]
+    strh    r2, [r0]
+    
+    ldr     r0, ScanlineEnd_Code
+    ldr     r1, =ScanlineEnd
+    str     r0, [r1]
     bx      lr
 
 .macro  SetBGVOFS    ofs
-    ldr     r0, =(regBG1VOffsetB+\ofs*4)
+    ldr     r0, =(regBG1VOffset+\ofs*4)
     b       WriteBGOFS
 .endm
 
 .macro  SetBGHOFS    ofs
-    ldr     r0, =(regBG1HOffsetWord+\ofs*4)
+    ldr     r0, =(regBG1HOffset+\ofs*4)
     b       WriteBGOFS
 .endm
 
@@ -1520,6 +1263,61 @@ W2113:
 @-------------------------------------------------------------------------
 W2114:
     SetBGVOFS    3
+    
+    .ltorg
+
+@-------------------------------------------------------------------------
+@ 0x2107 - BG1SC - BG1 Tilemap Address and Size
+@ 0x2108 - BG1SC - BG1 Tilemap Address and Size
+@ 0x2109 - BG1SC - BG1 Tilemap Address and Size
+@ 0x210A - BG1SC - BG1 Tilemap Address and Size
+@   aaaaaayx
+@   aaaaaa      = Tilemap address in VRAM (Addr>>10)
+@   x           = Tilemap horizontal mirroring
+@   y           = Tilemap veritcal mirroring
+@-------------------------------------------------------------------------
+
+W2107:
+    strb    r1, regBG1SC
+    bx      lr
+
+W2108:
+    strb    r1, regBG2SC
+    bx      lr
+
+W2109:
+    strb    r1, regBG3SC
+    bx      lr
+
+W210A:
+    strb    r1, regBG4SC
+    bx      lr
+
+@-------------------------------------------------------------------------
+@ 0x210B - BG1/2NBA - BG1 and 2 Chr Address
+@ 0x210C - BG3/4NBA - BG3 and 4 Chr Address
+@   bbbbaaaa
+@   aaaa = Base address for BG1/3 (Addr>>13)
+@   bbbb = Base address for BG2/4 (Addr>>13)
+@-------------------------------------------------------------------------
+W210B:
+    and     r0, r1, #0x7
+    strb    r0, regBG1NBA
+
+    mov     r0, r1, lsr #4
+    and     r0, r0, #0x7
+    strb    r0, regBG2NBA
+    bx      lr
+
+W210C:
+    and     r0, r1, #0x7
+    strb    r0, regBG3NBA
+
+    mov     r0, r1, lsr #4
+    and     r0, r0, #0x7
+    strb    r0, regBG4NBA
+    bx      lr
+
 
     .ltorg
 
@@ -1540,10 +1338,12 @@ W2133:
     ldreq   r0, =SCANLINE_BLANK       @ if overscan=0, vblank = 225
     sub     r0, r0, #255
     sub     r0, r0, #7
-    str     r0, vBlankScan
+    ldr     r1, =vBlankScan
+    str     r0, [r1]
 
     bx      lr
 
+    .ltorg
 
 @=========================================================================
 @ VRAM
@@ -1683,10 +1483,12 @@ W2117:
 
 W2117_SetupVRAMRead:
     @ set up the correct VRAM buffer for reading
+    @ (version 0.23 fix, thanks to Gladius)
     @
-    ldr     r2, regVRAMAddrLo       
-    bic     r0, r0, #0x8000
-    ldr     r0, =0x02020000
+    ldr     r2, regVRAMAddrLo     
+    bic     r2, r2, #0x8000
+    ldr     r0, =snesVramBase
+    add     r0, r0, r2, lsl #1
     ldrh    r0, [r0]
     strh    r0, vramTemp
 
@@ -1698,14 +1500,14 @@ W2117_SetupVRAMRead:
 W2118:
     ldr     r0, regVRAMAddrLo
     bic     r0, r0, #0x8000
-    ldr     r2, =0x02020000         @ VRAM base (low byte)
+    ldr     r2, =snesVramBase       @ VRAM base (low byte)
     strb    r1, [r2, r0, lsl #1]
 W2118_Inc:
     bx      lr                      @ (self modifying code) (or mov r0, r0)
-    ldrh    r2, regVRAMAddrLo       
+    ldr     r2, regVRAMAddrLo       
 W2118_IncCount:
     add     r2, r2, #1              @ (self modifying code) (or add r1, r1, #nn)
-    str     r2, regVRAMAddrLo       
+    strh     r2, regVRAMAddrLo       
     
     @ jump to VRAM write table
     mov     r0, r0, lsl #1
@@ -1726,14 +1528,14 @@ W2118_IncCount:
 W2119:
     ldr     r0, regVRAMAddrLo
     bic     r0, r0, #0x8000
-    ldr     r2, =0x02020001         @ VRAM base (high byte)
+    ldr     r2, =(snesVramBase+1)   @ VRAM base (high byte)
     strb    r1, [r2, r0, lsl #1]
 W2119_Inc:
     bx      lr                      @ (self modifying code) (or mov r0, r0)
     ldr     r2, regVRAMAddrLo       
 W2119_IncCount:
     add     r2, r2, #1              @ (self modifying code) (or add r1, r1, #nn)
-    str     r2, regVRAMAddrLo       
+    strh    r2, regVRAMAddrLo       
 
     @ jump to VRAM write table
     mov     r0, r0, lsl #1
@@ -1761,8 +1563,11 @@ R2139:
 R2139_Inc:
     bx      lr                      @ (self modifying code) (or mov r0, r0)
     ldr     r2, regVRAMAddrLo       
-    bic     r0, r0, #0x8000
-    ldr     r0, =0x02020000
+    
+    @ version 0.23 fix, thanks to Gladius
+    @
+    bic     r2, r2, #0x8000
+    ldr     r0, =snesVramBase
     add     r0, r0, r2, lsl #1
     ldrh    r0, [r0]
     strh    r0, vramTemp
@@ -1780,8 +1585,11 @@ R213A:
 R213A_Inc:
     bx      lr                      @ (self modifying code) (or mov r0, r0)
     ldr     r2, regVRAMAddrLo       
-    bic     r0, r0, #0x8000
-    ldr     r0, =0x02020000
+    
+    @ version 0.23 fix, thanks to Gladius
+    @
+    bic     r2, r2, #0x8000
+    ldr     r0, =snesVramBase
     add     r0, r0, r2, lsl #1
     ldrh    r0, [r0]
     strh    r0, vramTemp
@@ -1911,8 +1719,14 @@ R2136:
 @=========================================================================
 @ CGRAM
 @=========================================================================
+
 regCGRAMAddr:   .word   0
 regCGRAMLatch:  .word   0
+
+codeCGRAMHas4color1:    streqh  r0, [r1]
+codeCGRAMNo4color1:     strh    r0, [r1]
+codeCGRAMHas4color2:    cmp     r2, #64
+codeCGRAMNo4color2:     cmp     r2, #0
 
 @-------------------------------------------------------------------------
 @ 0x2121: CGADD - CGRAM Address
@@ -1953,13 +1767,14 @@ W2122:
 1:
     tsts    r2, #0x0100
     add     r1, r2, #0x05000000     @ write BG (16-color) palette
+W2122_4colors1:
     streqh  r0, [r1]
     add     r1, r1, #0x0200         @ write OBJ palette
     strh    r0, [r1]
 
+W2122_4colors2:
     cmp     r2, #64                 @ is palette index >= 64?
     bxge    lr                      @ return if so, otherwise...
-
     and     r1, r2, #0xF8           @ r1 = 00000000 000cc000
     and     r2, r2, #0x06           @ r2 = 00000000 00000cc0
     add     r2, r2, r1, lsl #2      @ r2 = 00000000 0cc00cc0
@@ -1976,18 +1791,23 @@ W2122:
 @=========================================================================
 regBackDrop:    .byte   0
                 .byte   0
-                .byte   0
+regColorSelect: .byte   0
 regColorMath:   .byte   0
 
 W212C:
+    ldrb    r0, regMainScreen
+    orr     r1, r0, r1
     strb    r1, regMainScreen
     bx      lr
 
 W212D:
+    ldrb    r0, regSubScreen
+    orr     r1, r0, r1
     strb    r1, regSubScreen
     bx      lr
 
 W2130:
+    strb    r1, regColorSelect
     bx      lr
 
 W2131:
@@ -2215,7 +2035,7 @@ W2183:
     
 W218xTranslate:
     ldr     r0, regWRAMAddr
-    orr     r0, r0, #0x02000000
+    orr     r0, r0, #snesWramBase
     str     r0, regWRAMAddr
     bx      lr
 
@@ -2224,8 +2044,7 @@ W218xTranslate:
 @ Joypad 
 @=========================================================================
 
-regJoyState:    .word   0
-regJoyLatch:    .word   0
+regJoyLatch:    .word   0xffffffff
 
 @-------------------------------------------------------------------------
 @ 0x4016 rwb++++ JOYSER0 - NES-style Joypad Access Port 1
@@ -2234,6 +2053,12 @@ regJoyLatch:    .word   0
 @-------------------------------------------------------------------------
 W4016:
     @ latch the joypad state
+    @ (only when bit 1 is set)
+    @ version 0.23 fix
+    @ 
+    tsts    r1, #1
+    bxeq    lr
+    
     ldr     r0, =keypadRead
     ldrh    r0, [r0]
     strh    r0, regJoyLatch
@@ -2253,9 +2078,6 @@ R4016:
 @ 0x4218 JOY1L - Controller Port 1 Data1 Register low byte
 @-------------------------------------------------------------------------
 R4218:
-R421A:
-R421C:
-R421E:
     ldr     r0, =keypadRead
     ldrb    r1, [r0]
     bx      lr
@@ -2264,13 +2086,18 @@ R421E:
 @ 0x4219 JOY1H - Controller Port 1 Data1 Register high byte
 @-------------------------------------------------------------------------
 R4219:
-R421B:
-R421D:
-R421F:
     ldr     r0, =keypadRead+1
     ldrb    r1, [r0]
 	bx      lr
 
+R421A:
+R421B:
+R421C:
+R421D:
+R421E:
+R421F:
+    mov     r1, #0
+    bx      lr
 
     .ltorg
 
@@ -2375,6 +2202,515 @@ R4217:
     ldrb    r1, regMulResult2+1
     bx      lr
 
+
+@=========================================================================
+@ ROM Access Speed
+@=========================================================================
+regROMAccess:   .byte   0
+                .byte   0
+                .byte   0
+                .byte   0
+
+@-------------------------------------------------------------------------
+@ 0x420D MEMSEL - ROM Access Speed
+@-------------------------------------------------------------------------
+W420D:
+    strb    r1, regROMAccess
+    tsts    r1, #1
+    ldreq   r0, ScanlineCode
+    ldrne   r0, ScanlineCodeFast
+    
+    ldr     r2, =Scanline_Cycle1
+    str     r0, [r2]
+    ldr     r2, =Scanline_Cycle2
+    str     r0, [r2]
+    ldr     r2, =Scanline_Cycle3
+    str     r0, [r2]
+    bx      lr
+
+ScanlineCode:
+    subs    SnesCYCLES, SnesCYCLES, #(CYCLES_PER_SCANLINE<<CYCLE_SHIFT)
+ScanlineCodeFast:    
+    subs    SnesCYCLES, SnesCYCLES, #(CYCLES_PER_SCANLINE_FAST<<CYCLE_SHIFT)
+    
+    .ltorg
+
+
+@=========================================================================
+@ IO routines
+@=========================================================================
+
+@-------------------------------------------------------------------------
+@ No IO operation
+@-------------------------------------------------------------------------
+IONOP:
+    mov     r1, #0                    
+    bx      lr
+
+
+@=========================================================================
+@ SAVE RAM Input/Output
+@=========================================================================
+R_SAV:
+    mov     r1, #0
+    ldr     r2, =SaveRAMMask
+    ldr     r2, [r2]
+    cmp     r2, #0
+    bxeq    lr
+
+    and     r0, r0, r2
+    add     r0, r0, #0x0e000000
+    ldrb    r1, [r0]
+    
+    bx      lr
+
+W_SAV:
+    ldr     r2, =SaveRAMMask
+    ldr     r2, [r2]
+    cmp     r2, #0
+    bxeq    lr
+    
+    and     r0, r0, r2
+    add     r0, r0, #0x0e000000
+    strb    r1, [r0]
+
+    bx      lr
+    
+
+@=========================================================================
+@ DMA
+@=========================================================================
+regDMAControl:      .byte 0,0,0,0,0,0,0,0       
+regDMADest:         .byte 0,0,0,0,0,0,0,0
+regDMASourceL:       
+    .byte   0
+regDMASourceH:
+    .byte   0
+regDMASourceB:
+    .byte   0
+    .byte   0
+    
+    .rept   28
+    .byte   0
+    .endr
+regDMASizeL:         
+    .byte   0
+regDMASizeH:
+    .byte   0
+regHDMAIndAddressB:
+    .byte   0
+    .byte   0
+
+    .rept   28
+    .byte   0
+    .endr
+
+regHDMAAddressL:     
+    .byte   0
+regHDMAAddressH:
+    .byte   0
+
+    .rept   14
+    .byte   0
+    .endr
+
+regHDMAGBAAddress:
+    .rept   8
+    .word   0
+    .endr
+
+regHDMALinecounter:     
+    .byte  0,0,0,0,0,0,0,0
+
+regHDMAVcounter:     
+    .byte  0,0,0,0,0,0,0,0
+
+@-------------------------------------------------------------------------
+@ Some DMA macros
+@-------------------------------------------------------------------------
+.macro movpc reg
+    .ifeq \reg-0
+        mov pc, r9
+    .endif
+    .ifeq \reg-1
+        mov pc, r10
+    .endif
+    .ifeq \reg-2
+        mov pc, r11
+    .endif
+    .ifeq \reg-3
+        mov pc, r12
+    .endif
+.endm
+
+.macro dmaWrite r1, r2, r3, r4
+    .ifeq (\r1+\r2+\r3+\r4)-0
+        ldmia   r3!, {r9}
+    .endif
+    .ifeq (\r1+\r2+\r3+\r4)-2
+        ldmia   r3!, {r9, r10}
+    .endif
+    .ifeq (\r1+\r2+\r3+\r4)-6
+        ldmia   r3!, {r9-r12}
+    .endif
+1:
+    ldrb    r1, [r6], r5
+    mov     lr, pc
+    movpc   \r1
+    subs    r4, r4, #0x00010000
+    beq     DMA_NextChannel
+
+    ldrb    r1, [r6], r5                
+    mov     lr, pc
+    movpc   \r2
+    subs    r4, r4, #0x00010000
+    beq     DMA_NextChannel
+
+    ldrb    r1, [r6], r5
+    mov     lr, pc
+    movpc   \r3
+    subs    r4, r4, #0x00010000
+    beq     DMA_NextChannel
+
+    ldrb    r1, [r6], r5
+    mov     lr, pc
+    movpc   \r4
+    subs    r4, r4, #0x00010000
+    beq     DMA_NextChannel
+
+    b       1b
+.endm
+
+.macro dmaRead r1, r2, r3, r4
+    .ifeq (\r1+\r2+\r3+\r4)-0
+        ldmia   r3!, {r9}
+    .endif
+    .ifeq (\r1+\r2+\r3+\r4)-2
+        ldmia   r3!, {r9, r10}
+    .endif
+    .ifeq (\r1+\r2+\r3+\r4)-6
+        ldmia   r3!, {r9-r12}
+    .endif
+1:
+    mov     lr, pc
+    movpc   \r1
+    strb    r1, [r6], r5
+    subs    r4, r4, #0x00010000
+    beq     DMA_NextChannel
+
+    mov     lr, pc
+    movpc   \r2
+    strb    r1, [r6], r5
+    subs    r4, r4, #0x00010000
+    beq     DMA_NextChannel
+
+    mov     lr, pc
+    movpc   \r3
+    strb    r1, [r6], r5
+    subs    r4, r4, #0x00010000
+    beq     DMA_NextChannel
+
+    mov     lr, pc
+    movpc   \r4
+    strb    r1, [r6], r5
+    subs    r4, r4, #0x00010000
+    beq     DMA_NextChannel
+
+    b       1b
+.endm
+
+
+@-------------------------------------------------------------------------
+@ 0x420B DMA Enable
+@   76543210    (channels)
+@-------------------------------------------------------------------------
+regDMACycles:   .word   0
+regDMAEnable:   .byte   0
+regHDMAEnable:  .byte   0
+regHDMAEnable2: .byte   0
+                .byte   0
+
+W420B:
+    strb    r1, regDMAEnable
+    stmfd   sp!, {r3-r12, lr}
+    mov     r2, #0
+    str     r2, regDMACycles
+    mov     r8, #-1
+
+DMA_Setup:
+    @ set up the DMA transfer
+    @
+    ldrb    r1, regDMAEnable
+    add     r8, r8, #1
+    tsts    r1, #0xff
+    beq     DMA_End
+    
+    movs    r1, r1, lsr #1
+    strb    r1, regDMAEnable
+    bcc     DMA_Setup
+
+    ldr     r0, =regDMAControl
+    ldrb    r0, [r0, r8]
+    tsts    r0, #0x10
+    movne   r5, #-1
+    moveq   r5, #1
+    tsts    r0, #0x08
+    movne   r5, #0                      @ r5, increment/decrement register
+    tsts    r0, #0x80                   @ cpsr = read or write?
+
+    and     r7, r0, #0x7                @ r7 is now the transfer mode
+    ldr     r0, =regDMADest
+    ldrb    r4, [r0, r8]                
+    add     r4, r4, #0x2100             
+    ldreq   r3, =IOWrite                 
+    ldrne   r3, =IORead
+    add     r3, r3, r4, lsl #2          @ r3 = decoder address for DMA Dest
+
+    ldr     r0, =regDMASourceL
+    ldr     r0, [r0, r8, lsl #2]        
+
+    TranslateAddressDMA
+
+    mov     r6, r0                      @ r6 = GBA effective address
+
+    ldr     r4, =regDMASizeL
+    ldr     r4, [r4, r8, lsl #2]        @ r4 = 00000000 ????????? ssssssss ssssssss (DMA transfer size)
+    mov     r4, r4, lsl #16             @ r4 = ssssssss sssssssss 00000000 00000000 (DMA transfer size)
+    
+    ldr     r2, regDMACycles
+    add     r2, r2, #(4<<CYCLE_SHIFT)   @ overhead per channel
+    
+    .ifgt CYCLE_SHIFT-16
+    add     r2, r2, r4, lsl #(CYCLE_SHIFT-16) @ r2 = stores the cycles used for the DMA transfer
+    .else
+    add     r2, r2, r4, lsr #(16-CYCLE_SHIFT) @ r2 = stores the cycles used for the DMA transfer
+    .endif
+    
+    str     r2, regDMACycles
+
+    ldreq   r0, =DMA_WriteJump          @ write
+    ldrne   r0, =DMA_ReadJump           @ read
+    ldr     pc, [r0, r7, lsl #2]        @ jump to the appropriate DMA transfer mode
+
+    @ version 0.22 fix
+    @ updates the DMA source address
+
+DMA_NextChannel:
+    @ increment the DMA register here
+    @
+    ldr     r5, =regDMASizeL
+    add     r5, r5, r8, lsl #2
+    mov     r6, #0
+    ldrh    r4, [r5]
+    bic     r4, r4, #0x00ff0000         @ r4 = 00000000 00000000 ssssssss ssssssss (DMA transfer size)
+    strh    r6, [r5]
+    
+    ldr     r5, =regDMASourceL
+    add     r5, r5, r8, lsl #2
+    ldrh    r6, [r5]                    
+    add     r6, r6, r4
+    strh    r6, [r5]
+    
+    b       DMA_Setup
+
+DMA_End:
+    ldmfd   sp!, {r3-r12, lr}
+    
+    ldr     r2, regDMACycles
+    add     SnesCYCLES, SnesCYCLES, r2
+    bx      lr
+
+DMA_Write_0000:
+    dmaWrite    0, 0, 0, 0
+
+DMA_Write_0011:
+    dmaWrite    0, 0, 1, 1
+
+DMA_Write_0101:
+    dmaWrite    0, 1, 0, 1
+
+DMA_Write_0123:
+    dmaWrite    0, 1, 2, 3
+
+DMA_WriteJump:
+    .long   DMA_Write_0000, DMA_Write_0101, DMA_Write_0000, DMA_Write_0011
+    .long   DMA_Write_0123, DMA_Write_0101, DMA_Write_0000, DMA_Write_0011
+
+DMA_Read_0000:
+    dmaRead    0, 0, 0, 0
+
+DMA_Read_0011:
+    dmaRead    0, 0, 1, 1
+
+DMA_Read_0101:
+    dmaRead    0, 1, 0, 1
+
+DMA_Read_0123:
+    dmaRead    0, 1, 2, 3
+
+DMA_ReadJump:
+    .long   DMA_Read_0000, DMA_Read_0101, DMA_Read_0000, DMA_Read_0011
+    .long   DMA_Read_0123, DMA_Read_0101, DMA_Read_0000, DMA_Read_0011
+
+@-------------------------------------------------------------------------
+@ 0x420C HDMA Enable
+@   76543210    (channels)
+@-------------------------------------------------------------------------
+W420C:
+    strb    r1, regHDMAEnable
+    tsts    r1, #0xff
+    /*biceq   SnesIRQ, SnesIRQ, #IRQ_HDMA
+    orrne   SnesIRQ, SnesIRQ, #IRQ_HDMA*/
+    bx      lr
+
+.macro  GetDMAChannel
+    mov     r0, r0, lsr #4
+    and     r0, r0, #0x7
+.endm
+
+@-------------------------------------------------------------------------
+@ DMA Write
+@-------------------------------------------------------------------------
+W43x0:
+    GetDMAChannel
+    ldr     r2, =regDMAControl
+    strb    r1, [r2, r0]
+    bx      lr
+
+W43x1:
+    GetDMAChannel
+    ldr     r2, =regDMADest
+    strb    r1, [r2, r0]
+    bx      lr
+
+W43x2:
+    GetDMAChannel
+    ldr     r2, =regDMASourceL
+    strb    r1, [r2, r0, lsl #2]
+    bx      lr
+
+W43x3:
+    GetDMAChannel
+    ldr     r2, =regDMASourceH
+    strb    r1, [r2, r0, lsl #2]
+    bx      lr
+
+W43x4:
+    GetDMAChannel
+    ldr     r2, =regDMASourceB
+    strb    r1, [r2, r0, lsl #2]
+    bx      lr
+
+W43x5:
+    GetDMAChannel
+    ldr     r2, =regDMASizeL
+    strb    r1, [r2, r0, lsl #2]
+    bx      lr
+
+W43x6:
+    GetDMAChannel
+    ldr     r2, =regDMASizeH
+    strb    r1, [r2, r0, lsl #2]
+    bx      lr
+
+W43x7:
+    GetDMAChannel
+    ldr     r2, =regHDMAIndAddressB
+    strb    r1, [r2, r0, lsl #2]
+    bx      lr
+
+W43x8:
+    GetDMAChannel
+    ldr     r2, =regHDMAAddressL
+    strb    r1, [r2, r0, lsl #1]
+    bx      lr
+
+W43x9:
+    GetDMAChannel
+    ldr     r2, =regHDMAAddressH
+    strb    r1, [r2, r0, lsl #1]
+    bx      lr
+
+W43xA:
+    GetDMAChannel
+    ldr     r2, =regHDMALinecounter
+    strb    r1, [r2, r0]
+    bx      lr
+
+
+@-------------------------------------------------------------------------
+@ DMA Read
+@-------------------------------------------------------------------------
+R43x0:
+    GetDMAChannel
+    ldr     r2, =regDMAControl
+    ldrb    r1, [r2, r0]
+    bx      lr
+
+R43x1:
+    GetDMAChannel
+    ldr     r2, =regDMADest
+    ldrb    r1, [r2, r0]
+    bx      lr
+
+R43x2:
+    GetDMAChannel
+    ldr     r2, =regDMASourceL
+    ldrb    r1, [r2, r0, lsl #2]
+    bx      lr
+
+R43x3:
+    GetDMAChannel
+    ldr     r2, =regDMASourceH
+    ldrb    r1, [r2, r0, lsl #2]
+    bx      lr
+
+R43x4:
+    GetDMAChannel
+    ldr     r2, =regDMASourceB
+    ldrb    r1, [r2, r0, lsl #2]
+    bx      lr
+
+R43x5:
+    GetDMAChannel
+    ldr     r2, =regDMASizeL
+    ldrb    r1, [r2, r0, lsl #2]
+    bx      lr
+
+R43x6:
+    GetDMAChannel
+    ldr     r2, =regDMASizeH
+    ldrb    r1, [r2, r0, lsl #2]
+    bx      lr
+
+R43x7:
+    GetDMAChannel
+    ldr     r2, =regHDMAIndAddressB
+    ldrb    r1, [r2, r0, lsl #2]
+    bx      lr
+
+R43x8:
+    GetDMAChannel
+    ldr     r2, =regHDMAAddressL
+    ldrb    r1, [r2, r0, lsl #1]
+    bx      lr
+
+R43x9:
+    GetDMAChannel
+    ldr     r2, =regHDMAAddressH
+    ldrb    r1, [r2, r0, lsl #1]
+    bx      lr
+
+R43xA:
+    GetDMAChannel
+    ldr     r2, =regHDMALinecounter
+    ldrb    r1, [r2, r0]
+    bx      lr
+
+    .ltorg
+
+
+
 @=========================================================================
 @ Renderer
 @=========================================================================
@@ -2422,7 +2758,7 @@ CopyTileMap:
 
     ldr     r2, =tileMap
 
-    ldr     r1, =0x02020000
+    ldr     r1, =snesVramBase
     add     r1, r1, r0
 
     mov     r8, #1024
@@ -2615,8 +2951,8 @@ VRAMWriteTileMap:
     ldr     r2, =VRAMBG
     ldrb    r2, [r2, r1]                @ r2 = BG number
     cmp     r2, #2
-    moveq   r5, #0x8000
-    movne   r5, #0x0000
+    moveq   r5, #0x8000                 @ use the 4-color palette
+    movne   r5, #0x0000                 @ use the 16-color palette
 
     ldr     r3, =bg1TileOffset
     ldr     r3, [r3, r2, lsl #2]
@@ -2624,7 +2960,7 @@ VRAMWriteTileMap:
     
     ldr     r2, =tileMap
 
-    ldr     r1, =0x02020000
+    ldr     r1, =snesVramBase
     add     r1, r1, r0
 
     ldrh    r4, [r1], #2                @ 3 
@@ -2673,7 +3009,7 @@ VRAMWriteBGChar:
     ldr     r4, =bg1VRAMOffset
     ldr     r3, [r4, r3, lsl #2]
 
-    ldr     r1, =0x02020000
+    ldr     r1, =snesVramBase
     add     r1, r1, r0                          @ r1 = stores the SNES VRAM address     
 
     cmp     r6, #0xf
@@ -2724,7 +3060,7 @@ VRAMWriteObj0Char_16color:
 
 VRAMWriteObj:
     ldr     r2, =charUnpack4
-    ldr     r1, =0x02020000
+    ldr     r1, =snesVramBase
     bic     r0, r0, #0x1f           @ r0 = 00000000 00000000 aaaaaaaa aaa00000  (offset in SNES VRAM)
     add     r1, r1, r0
     
@@ -2740,6 +3076,52 @@ VRAMWriteObj:
 VRAMObj0Offset:   .word   0
 VRAMObj1Offset:   .word   0
     .ltorg
+
+
+@-------------------------------------------------------------------------
+@ VRAM Mode 7 BG CHR/TILE
+@ version 0.23 
+@-------------------------------------------------------------------------
+VRAMWriteMode7:
+    stmfd   sp!, {r3}
+    
+    ldr     r1, =snesVramBase
+    ldrh    r1, [r1, r0]
+    mov     r1, r1, ror #8
+    mov     r0, r0, lsr #1
+    tsts    r0, #1
+    bic     r0, r0, #1
+
+    @ character
+    @
+    ldr     r2, =(gbaVramBase)
+    ldrh    r2, [r2, r0]
+    
+    biceq   r2, r2, #0x00ff
+    orreq   r3, r2, r1
+    bicne   r2, r2, #0xff00
+    orrne   r3, r2, r1, lsl #8
+    
+    ldr     r2, =(gbaVramBase)
+    strh    r3, [r2, r0]
+    
+    @ tile
+    @
+    mov     r1, r1, lsr #24
+    ldr     r2, =(gbaVramBase+0x8000)
+    ldrh    r2, [r2, r0]
+
+    biceq   r2, r2, #0x00ff
+    orreq   r3, r2, r1
+    bicne   r2, r2, #0xff00
+    orrne   r3, r2, r1, lsl #8
+    
+    ldr     r2, =(gbaVramBase+0x8000)
+    strh    r3, [r2, r0]
+
+    ldmfd   sp!, {r3}
+    
+    bx      lr
 
 
 yOffset:
@@ -2760,6 +3142,16 @@ yOffset:
     .byte 0x00
     .endr
     .byte 0x00
+
+@-------------------------------------------------------------------------
+@ This is used for any mid-frame change for BG HOFS/VOFS
+@-------------------------------------------------------------------------
+    .align   4
+
+bgOffset:
+    .rept 160
+    .hword 0x00
+    .endr
 
     .align   4
 
@@ -2848,3 +3240,4 @@ configCursor:
 .endif
 
 
+    
