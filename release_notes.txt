@@ -1,3 +1,15 @@
+v0.24 (Quick Fix Release)
+-----
+
+Fixes and Features:
+- Quick fixed a minor problem in the header detection algorithm in the 
+  Snezziboy builder. (This may require a more proper fix later...)
+- Fixed a bug with the XCE code that was emulated wrongly.
+- Fixed the VRAM allocation so that Illusion of Gaia works correctly again.
+- Remove the wraparound bug that causes clones of Samus' ship during the
+  Super Metroid demo.
+
+
 v0.23
 -----
 
@@ -41,15 +53,14 @@ Fixes and Features:
 
 - Added Quick Configuration Feature:
   o L+R+SELECT+UP: Cycle through the following BG Priority Sets
-      set 1 = (P1, P2, P3, P3)
-      set 2 = (P2, P1, P3, P3)
+      set 1 = (P1, P2, P0, P3)
+      set 2 = (P2, P1, P0, P3)
       set 3 = (P0, P1, P2, P3)
       set 4 = (P1, P0, P2, P3)
 
   o L+R+SELECT+DOWN: Cycle through the FORCED BG MODEs
       opt 0 = as required by game
       opt 1-7 = the respective modes
-
 
 
 v0.22

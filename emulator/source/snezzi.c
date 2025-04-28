@@ -2,7 +2,7 @@
 -------------------------------------------------------------------
 Snezziboy Builder 
 */
-#define VERSION_NO  "0.23"
+#define VERSION_NO  "0.24"
 /*
 Copyright (C) 2006 bubble2k
 
@@ -181,7 +181,7 @@ void patch(int crc, char* buffer)
         return;
     }
 
-    sprintf( hex, "%8X", crc );
+    sprintf( hex, "%08X", crc );
 
     while( !feof( fp ) )
     {
@@ -367,8 +367,12 @@ int main( int argc, char **argv )
             fread( headerBuffer, 512, 1, fp2 );
             count = 0;
             for( i=64; i<512; i++ )
-                if( headerBuffer[i]!=0 )
-                    hasHeader = 0;
+                if( headerBuffer[i]==0 )
+                    count ++;
+
+            // version 0.24
+            if( count<400 )
+                hasHeader = 0;
         }
         if( hasHeader )
         {
@@ -397,7 +401,7 @@ int main( int argc, char **argv )
         else
             fseek( fp2, 0, SEEK_SET );
         unsigned long crc = get_crc( fp2 );
-        printf( "CRC Checksum: %8X\n", crc );
+        printf( "CRC Checksum: %08X\n", crc );
 
 
         //-------------------------------------------

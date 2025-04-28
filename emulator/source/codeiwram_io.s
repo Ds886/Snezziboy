@@ -1,6 +1,6 @@
 /*
 -------------------------------------------------------------------
-Snezziboy v0.23
+Snezziboy v0.24
 
 Copyright (C) 2006 bubble2k
 
@@ -974,9 +974,11 @@ regOAMAddrInternal: .word   0
 regInitDisp:        .byte   0
 regInitDispPrev:    .byte   0
 regMOSAIC:          .byte   0
+                    .byte   0
+                    
+@ v0.24 fix for hword alignment (thanks to Gladius)
 regOAMAddrLo:       .byte   0
 regOAMAddrHi:       .byte   0
-                    .byte   0
                     .byte   0
                     .byte   0
 
@@ -2755,6 +2757,7 @@ CopyTileMap:
     ldr     r3, =bg1TileOffset
     ldr     r3, [r3, r1, lsl #2]
     add     r3, r3, r0
+    bic     r3, r3, #0x00ff0000         @ v0.24 sanity fix 
 
     ldr     r2, =tileMap
 
@@ -2769,6 +2772,7 @@ copyTileMapLoop:
     orr     r4, r4, r0, lsl #8          @ 1
     orr     r4, r4, r9
     strh    r4, [r3], #2                @ 3
+    bic     r3, r3, #0x00ff0000         @ v0.24 sanity fix 
     subs    r8, r8, #1
     bne     copyTileMapLoop
     mov     pc, lr
@@ -2939,6 +2943,9 @@ CopyObjChar_16Loop2:
 @-------------------------------------------------------------------------
 @ Do nothing
 @-------------------------------------------------------------------------
+VRAMWriteNOP2:
+    bx      lr
+    
 VRAMWriteNOP:
     bx      lr
 
@@ -2950,13 +2957,15 @@ VRAMWriteTileMap:
 
     ldr     r2, =VRAMBG
     ldrb    r2, [r2, r1]                @ r2 = BG number
+
     cmp     r2, #2
     moveq   r5, #0x8000                 @ use the 4-color palette
     movne   r5, #0x0000                 @ use the 16-color palette
 
     ldr     r3, =bg1TileOffset
     ldr     r3, [r3, r2, lsl #2]
-    add     r3, r3, r0
+    add     r3, r3, r0                  
+    bic     r3, r3, #0x00ff0000         @ v0.24 sanity fix
     
     ldr     r2, =tileMap
 

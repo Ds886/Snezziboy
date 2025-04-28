@@ -1,6 +1,6 @@
 /*
 -------------------------------------------------------------------
-Snezziboy v0.23
+Snezziboy v0.24
 
 Copyright (C) 2006 bubble2k
 
@@ -810,7 +810,7 @@ RenderCopyBGTileMap:
     and     r7, r1, #0x03                   @ r7 = 00000000 000000yx
 
     ldr     r5, =VRAMWrite
-    add     r5, r5, r0, lsl #2
+    @add     r5, r5, r0, lsl #2
 
     mov     r0, r0, lsl #11                 @ r0 = ttttt000 00000000
     mov     r6, r0
@@ -818,7 +818,7 @@ RenderCopyBGTileMap:
     ldr     r1, =ScreenMode
     ldrb    r1, [r1]
     ldr     r4, =VRAMWriteTileMap
-    str     r4, [r5], #4
+    str     r4, [r5, r6, lsr #9]
     ldr     r4, =VRAMBG
     strb    r1, [r4, r6, lsr #11]
     mov     lr, pc
@@ -829,8 +829,9 @@ RenderCopyBGTileMap:
     ldr     r1, =ScreenMode
     ldrb    r1, [r1]
     add     r0, r6, #0x800
+    bic     r0, r0, #0x00ff0000             @ version 0.24 fix
     ldr     r4, =VRAMWriteTileMap
-    str     r4, [r5], #4
+    str     r4, [r5, r6, lsr #9]
     ldr     r4, =VRAMBG
     strb    r1, [r4, r6, lsr #11]
     mov     lr, pc
@@ -841,8 +842,9 @@ RenderCopyBGTileMap:
     ldr     r1, =ScreenMode
     ldrb    r1, [r1]
     add     r0, r6, #0x1000
+    bic     r0, r0, #0x00ff0000             @ version 0.24 fix
     ldr     r4, =VRAMWriteTileMap
-    str     r4, [r5], #4
+    str     r4, [r5, r6, lsr #9]
     ldr     r4, =VRAMBG
     strb    r1, [r4, r6, lsr #11]
     mov     lr, pc
@@ -851,8 +853,9 @@ RenderCopyBGTileMap:
     ldr     r1, =ScreenMode
     ldrb    r1, [r1]
     add     r0, r6, #0x1800
+    bic     r0, r0, #0x00ff0000             @ version 0.24 fix
     ldr     r4, =VRAMWriteTileMap
-    str     r4, [r5], #4
+    str     r4, [r5, r6, lsr #9]
     ldr     r4, =VRAMBG
     strb    r1, [r4, r6, lsr #11]
     mov     lr, pc
@@ -1131,14 +1134,31 @@ AllocateBG3:
     mov     r8, r8, lsl #1
     sub     r3, r8, r5
     cmp     r3, #2                          @ if it is, assume that BG3 can be moved to block #1.
-    moveq   r1, #1                          @ (will not work if BG1 shares the tiles with the OBJs)
-    beq     EndAllocate
+    bne     AllocateBG3_CheckLoop
+    mov     r1, #1                          @ (will not work if BG1 shares the tiles with the OBJs)
+    
+    ldr     r3, =regBG1NBA
+    ldrb    r3, [r3]                        @ r1 = 0000aaaa
+    and     r3, r3, #0x07
+    
+    ldr     r5, =VRAMWrite
+    ldr     r6, =VRAMWriteNOP2
+    mov     r8, #8
+    add     r5, r5, r3, lsl #4
+    add     r5, r5, #(8*4)
+1:  str     r6, [r5], #4
+    subs    r8, r8, #1
+    bne     1b
+
+    b       EndAllocate
+
+AllocateBG3_CheckLoop:
     
     mov     r8, #0
     mov     r6, r6, lsl #2
 BG3CheckLoop:
     ldr     r5, =regBG1SC
-    ldr     r5, [r5, r8]
+    ldrb    r5, [r5, r8]                    @ v0.24 fix (thanks to Gladius)
     mov     r5, r5, lsr #2
     and     r5, r5, #0x1f
     subs    r5, r5, r6
@@ -1210,6 +1230,9 @@ EndAllocate:
     bne     1b
     
     sub     r4, r4, r3, lsl #9
+    bic     r4, r4, #0xff000000             @ v0.24 sanity fix
+    bic     r4, r4, #0x00ff0000
+    add     r4, r4, #0x06000000
     ldr     r5, =bg1TileOffset
     str     r4, [r5, r0, lsl #2]
     ldr     r4, =VRAMBG
@@ -1235,8 +1258,8 @@ EndAllocate:
 @-------------------------------------------------------------------------
 @ mode 7 BG CNT
 @-------------------------------------------------------------------------
-RenderCopyMode7BGCNT:
-    ldr     r0, =0xF080
+RenderCopyMode7BGCNT:   
+    ldr     r0, =0xD080                     @ v0.24 fix, to remove the mode7 wraparound
     ldr     r1, =0x0400000C
     strh    r0, [r1]
     

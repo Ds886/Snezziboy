@@ -1,6 +1,6 @@
 /*
 -------------------------------------------------------------------
-Snezziboy v0.23
+Snezziboy v0.24
 
 Copyright (C) 2006 bubble2k
 
@@ -127,7 +127,7 @@ m1x0Decoder:
     .long CPX_m1x0I,CPX_m1x0I,SBC_m1x0,DXI_26,    SEP_m1x0,SEP_m1x0,  SBC_m1x0,DS_24,     CPX_m1x0,D_23,      SBC_m1x0,D_23,      INC_m1x0,D_25,      SBC_m1x0,DIL_26     
     .long INX_m1x0,INX_m1x0,  SBC_m1x0,IMM_m1,    NOP_m1x0,NOP_m1x0,  XBA_m1x0,XBA_m1x0,  CPX_m1x0,A_34,      SBC_m1x0,A_34,      INC_m1x0,A_36,      SBC_m1x0,AL_45      
     .long BEQ_m1x0,BEQ_m1x0,  SBC_m1x0,DIY_25,    SBC_m1x0,DI_25,     SBC_m1x0,DSIY_27,   PEA_m1x0,PEA_m1x0,  SBC_m1x0,DX_24,     INC_m1x0,DX_26,     SBC_m1x0,DILY_26    
-    .long SED_m1x0,SED_m1x0,  SBC_m1x0,AY_34,     PLX_m1x0,PLX_m1x0,  XCE_m1x0,SED_m1x0,  JSR_m1x0,AXI_J36,   SBC_m1x0,AX_34,     INC_m1x0,AX_37,     SBC_m1x0,ALX_45     
+    .long SED_m1x0,SED_m1x0,  SBC_m1x0,AY_34,     PLX_m1x0,PLX_m1x0,  XCE_m1x0,XCE_m1x0,  JSR_m1x0,AXI_J36,   SBC_m1x0,AX_34,     INC_m1x0,AX_37,     SBC_m1x0,ALX_45     
 m1x1Decoder:
     .long BRK_m1x1,S_28,      ORA_m1x1,DXI_26,    COP_m1x1,S_28,      ORA_m1x1,DS_24,     TSB_m1x1,D_25,      ORA_m1x1,D_23,      ASL_m1x1,D_25,      ORA_m1x1,DIL_26     
     .long PHP_m1x1,PHP_m1x1,  ORA_m1x1,IMM_m1,    ASLA_m1x1,REGA_12,  PHD_m1x1,PHD_m1x1,  TSB_m1x1,A_36,      ORA_m1x1,A_34,      ASL_m1x1,A_36,      ORA_m1x1,AL_45      
