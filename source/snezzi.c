@@ -1,7 +1,9 @@
 /*
 -------------------------------------------------------------------
-Snezziboy Builder v0.1
-
+Snezziboy Builder 
+*/
+#define VERSION_NO  "0.21"
+/*
 Copyright (C) 2006 bubble2k
 
 This program is free software; you can redistribute it and/or 
@@ -19,7 +21,6 @@ GNU General Public License for more details.
 #include <stdlib.h>
 #include <string.h>
 
-#define VERSION_NO  "0.1"
 
 /*
 	joins the snes emulator to the smc/fig file
@@ -33,7 +34,7 @@ char *iwramend = ".IWRAMEND";
 
 int sramSizeBytes = 1;
 int mapper[16];
-int memorymap[256*8];
+int memorymap[256*8+1];
 
 #define NOP(v)   0x00000000
 #define LRAM(v)  ((v) & 0x0000FFFF) | 0x02000000
@@ -42,7 +43,7 @@ int memorymap[256*8];
 #define HROM(v)  (((v) & 0x0000FFFF)+(((v)) & ((romSize-1) & ~0xFFFF))) + (0x08000000+snesRomPosition)
 #define ROM(v)   ((v) & 0x000FFFFF) + (0x08000000+snesRomPosition)
 #define IO(v)    ((v) & 0x0000FFFF) | 0x80000000
-#define SRAM(v)  ((v) & (sramSizeBytes-1)) | 0x0e000000
+#define SRAM(v)  ((v) & 0x00001FFF) + 0x80006000
 #define SVEC(v)  ((v) & 0x000000FF) + 0x0203FF00
 
 
@@ -97,6 +98,7 @@ void formmemorymap( int loRom, int romSize ) // romSize in bytes
         map( 0xb0, 0xbf, LRAM,IO,  IO,  SRAM,HROM,HROM,HROM,HROM);
         map( 0xc0, 0xff, HROM,HROM,HROM,HROM,HROM,HROM,HROM,HROM);
     }
+    memorymap[256*8] = sramSizeBytes-1;
 }
 
 char filePath[1024];
@@ -351,7 +353,7 @@ int main( int argc, char **argv )
             fseek( fp2, 0, SEEK_SET );
             fread( headerBuffer, 512, 1, fp2 );
             count = 0;
-            for( i=32; i<512; i++ )
+            for( i=64; i<512; i++ )
                 if( headerBuffer[i]!=0 )
                     hasHeader = 0;
         }

@@ -1,9 +1,40 @@
+v0.21 
+----
+
+Bug Fixes:
+
+- Fixed the TSC instruction so that the C register is updated regardless if M bit.
+- Fixed the TDC instruction so that the C register is updated regardless if M bit.
+- Fixed the RTL/RTS/RTI instructions so that it can properly return from the subroutine
+  that had been JSL/JSR-ed from $xx:8000
+- Made fixes in the memory map for games with no SRAM size, so that ROMs that try
+  to detect for absence of SRAM (protection against copying) will get what they expect.
+  (Bust-a-move makes it to the main screen, but the game itself is unplayable due to
+  the use of HDMA)
+- Made fixes to the $DB (modified STP instruction) to jump correctly. 
+  (Tetris Attack now works)
+- Fixed the PEI instruction; it was previously pushing $0000 always onto the stack
+- Fixed BIT instruction to update the N/Z flags correctly when BIT-ing in a non-immediate mode.
+  (Super Mario World fades correctly after each stage)
+  (Megaman7's collision detection is now accurate)
+- Fixed register $4016 for joypad auto-reading and latching
+  (Donkey Kong Country now recognizes joypad input)
+- Reworked SRAM reading and writing routines
+  (Donkey Kong Country seems playable; some screens are remain garbled) 
+- Fixed bug with VRAM writing
+  (Darius Twin's in-game screen no longer garbles-up randomly)
+
+Known Issues:
+
+- Breath of Fire I keeps flickering, and runs very slowly.
+- For some reason, sprites seem to be 'flickering' on many games.
+
+
 v0.2 
 ----
 
 Bug Fixes:
 
-- Fixed vertical-sync so that games appear much smoother now.
 - Fixed the TXS instruction so that processor flags are not updated
 - Fixed the IO for WRAM write at IO addresses $2180-3
   (Megaman7 sprites now appear)
@@ -14,7 +45,7 @@ Bug Fixes:
   (MegamanX, Megaman7 runs faster)
 - Fixed 256 color background update (for mode 3)
   (Super Mario All-Stars title and menu selection now visible, 
-  Super Mario Bros, The Lost Worlds subgames seem playable with appropriate speed patch)
+  Super Mario Bros, The Lost Worlds subgames entirely playable with appropriate speed patch)
 - Fixed VRAM allocation for modes 2 and above 
   (able to see blobs that have been dropped on the field)
 

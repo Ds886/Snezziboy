@@ -1,6 +1,6 @@
 /*
 -------------------------------------------------------------------
-Snezziboy v0.1
+Snezziboy v0.21
 
 Copyright (C) 2006 bubble2k
 
@@ -49,7 +49,7 @@ GNU General Public License for more details.
 @-------------------------------------------------------------------------
 .macro SetDebugText addr, t
     ldr     r0, =debugMemoryBase
-    add     r0, r0, #\addr
+    add     r0, r0, \addr
     ldr     r1, =2f
 1:
     ldrb    r2, [r1]
@@ -65,6 +65,25 @@ GNU General Public License for more details.
 3:
 .endm
 
+.macro SetDebugTextP addr, t
+    stmfd   sp!, {r0, r1, r2}
+    ldr     r0, =debugMemoryBase
+    add     r0, r0, \addr
+    ldr     r1, =2f
+1:
+    ldrb    r2, [r1]
+    cmp     r2, #0
+    beq     3f
+    strb    r2, [r0]
+    add     r1, r1, #1
+    add     r0, r0, #1
+    b       1b
+2:
+    .asciz  "\t"
+    .align  4
+3:
+    ldmfd   sp!, {r0, r1, r2}
+.endm
 
 @--------------------------------------------------------
 @ set the processor state in memory for vbadump
@@ -429,8 +448,8 @@ SetInterruptVectors:
     CacheMemoryMap
 
     .ifeq debug-1
-        SetDebugText    0x70, "LINE----"    @ for the vba dump to trace
-        SetDebugText    0x78, "BRK0" 	    @ for the vba dump to trace
+        SetDebugText    #0x70, "LINE----"    @ for the vba dump to trace
+        SetDebugText    #0x78, "BRK0" 	    @ for the vba dump to trace
     .endif
 
     subs    SnesCYCLES, SnesCYCLES, #0
@@ -462,9 +481,80 @@ ModeRender:
 @-------------------------------------------------------------------------
 @ finalize the renderer
 @-------------------------------------------------------------------------
-.macro  EndRenderer
+RenderEndRenderer:
+    .ifeq   debug-1
+        SetDebugTextP   #0x100, "BGMODE"
+        ldr     r0, =debugMemoryBase
+        add     r0, r0, #0x110
+        ldr     r1, =regBGMode
+        ldrb    r1, [r1]
+        strb    r1, [r0]
+
+        SetDebugTextP    #0x120, "TYPE/BG#/OBJ"
+        
+        ldr     r1, =VRAMWrite
+        ldr     r2, =VRAMObjWrite
+        ldr     r3, =VRAMBG
+        
+        ldr     r4, =VRAMWriteTileMap
+        ldr     r5, =VRAMWriteBGChar
+        ldr     r6, =VRAMWriteNOP
+        
+        mov     r9, #0x130
+        mov     r8, #0
+6:
+        SetDebugTextP    r9, "----/---/---"
+        ldr     r7, [r1], #4
+        cmp     r7, r4          @ is VRAMWrite[r1] == VRAMWriteTileMap?
+        bne     4f
+        SetDebugTextP    r9, "TILE"
+4:
+        cmp     r7, r5
+        bne     4f
+        SetDebugTextP    r9, "CHAR"
+4:
+        add     r9, r9, #5
+        
+        cmp     r7, r6
+        beq     5f
+
+        ldrb    r7, [r3]
+        cmp     r7, #0
+        bne     4f
+        SetDebugTextP    r9, "BG0"
+4:
+        cmp     r7, #1
+        bne     4f
+        SetDebugTextP    r9, "BG1"
+4:
+        cmp     r7, #2
+        bne     4f
+        SetDebugTextP    r9, "BG2"
+4:
+        cmp     r7, #3
+        bne     4f
+        SetDebugTextP    r9, "BG3"
+4:
+5:
+        add     r9, r9, #4
+        
+        ldr     r7, [r2], #4
+        cmp     r7, r6
+        beq     4f
+        SetDebugTextP    r9, "OBJ"
+4:
+        add     r3, r3, #1
+        add     r9, r9, #7
+        add     r8, r8, #1
+        cmp     r8, #32
+        bne     6b
+    .endif
+
     ldmfd   sp!, {r3-r9, lr}
     bx      lr
+
+.macro  EndRenderer
+    b       RenderEndRenderer
 .endm
 
 RenderCopyBGCopyCharTable:
@@ -525,6 +615,7 @@ ClearVRAMWriteLoop:                             @ clears both VRAM/OBJ table
 RenderEnableBG:
     ldr     r2, =0x04000000 
     ldrh    r0, [r2]
+
     ldr     r1, =regMainScreen
     ldrb    r1, [r1]
     ldr     r3, =regSubScreen
@@ -532,7 +623,7 @@ RenderEnableBG:
     orr     r1, r1, r3
 
     bic     r0, r0, #0x7
-    bic     r0, r0, #0x8f00
+    bic     r0, r0, #0x1f00
     and     r1, r1, #0x1f
     orr     r0, r0, r1, lsl #8
 
@@ -605,14 +696,6 @@ RenderCopyBGChar2_Loop:
     mov     r0, #0
 
 RenderCopyBGChar2_Loop2:
-    ldr     r1, =regMainScreen
-    ldrb    r1, [r1]
-    ldr     r2, =regSubScreen
-    ldrb    r2, [r2]
-    orr     r1, r2, r1
-    mov     r2, #1
-    tsts    r1, r2, lsl r0
-    beq     RenderCopyBGChar2_SkipLoop      @ skip if background is not activated in main/sub screen
 
     ldr     r1, =regBG1NBA
     ldrb    r1, [r1, r0]
@@ -659,16 +742,6 @@ RenderCopyBGTileMap:
     ldr     r1, =ScreenMode
     strb    r0, [r1]
 
-    ldr     r1, =regMainScreen
-    ldrb    r1, [r1]
-    ldr     r2, =regSubScreen
-    ldrb    r2, [r2]
-
-    orr     r1, r2, r1
-    mov     r2, #1
-    tsts    r1, r2, lsl r0
-    bxeq    lr                              @ skip if background is not activated in main/sub screen
-    
     cmp     r0, #2                          @ if this is BG3, 
     moveq   r9, #0x8000                     @ add to the tile map palette
     movne   r9, #0x0000
@@ -818,14 +891,6 @@ RenderCopyOBJChar:
 RenderCopyBGCNT:
     ldr     r1, =NumColors
     strb    r6, [r1]
-    ldr     r1, =regMainScreen
-    ldrb    r1, [r1]
-    ldr     r2, =regSubScreen
-    ldrb    r2, [r2]
-    orr     r1, r2, r1
-    mov     r2, #1
-    tsts    r1, r2, lsl r0
-    bxeq    lr                              @ skip if background is not activated in main/sub screen
 
     ldr     r3, =configBG0Priority          @ override the default SNES priority
     ldrb    r3, [r3, r0]
@@ -941,9 +1006,9 @@ NBA_BG1_EQS_BG2:
     ldr     r5, =VRAMWriteTileMap
     and     r3, r3, #0x7c                   @ r3 = 00000000 0ttttt00
     add     r6, r6, r3
-/*1:  str     r5, [r6], #4
+1:  str     r5, [r6], #4
     subs    r8, r8, #1
-    bne     1b*/
+    bne     1b
     
     sub     r4, r4, r3, lsl #9
     ldr     r5, =bg1TileOffset
@@ -1036,6 +1101,7 @@ RenderMode3:
     EnableBG        EnableBG0 + EnableBG1 + EnableOBJ
 
     EndRenderer
+    .ltorg
 
     SetText "RMODE4"
 @-------------------------------------------------------------------------
@@ -1946,7 +2012,9 @@ IORead:
     IO  0x001,  R43x0,R43x1,R43x2,R43x3,R43x4,R43x5,R43x6,R43x7, R43x8,R43x9,R43xA,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x4360
     IO  0x001,  R43x0,R43x1,R43x2,R43x3,R43x4,R43x5,R43x6,R43x7, R43x8,R43x9,R43xA,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x4370
     IO  0x008,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x4380
-    IO  0x1c8,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x4390
+    IO  0x1c0,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x4400
+    
+    IO  0x200,  R_SAV,R_SAV,R_SAV,R_SAV,R_SAV,R_SAV,R_SAV,R_SAV, R_SAV,R_SAV,R_SAV,R_SAV,R_SAV,R_SAV,R_SAV,R_SAV     @ 0x6000
 
 IOWrite:
     IO  0x210,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x0000-
@@ -1978,8 +2046,9 @@ IOWrite:
     IO  0x001,  W43x0,W43x1,W43x2,W43x3,W43x4,W43x5,W43x6,W43x7, W43x8,W43x9,W43xA,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x4360
     IO  0x001,  W43x0,W43x1,W43x2,W43x3,W43x4,W43x5,W43x6,W43x7, W43x8,W43x9,W43xA,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x4370
     IO  0x008,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x4380
-    IO  0x1c8,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x4390
+    IO  0x1c0,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x4400
 
+    IO  0x200,  W_SAV,W_SAV,W_SAV,W_SAV,W_SAV,W_SAV,W_SAV,W_SAV, W_SAV,W_SAV,W_SAV,W_SAV,W_SAV,W_SAV,W_SAV,W_SAV     @ 0x6000
 
 
 @=========================================================================
@@ -8289,4 +8358,6 @@ MemoryMap:
     .long   0
     .endr
 
+SaveRAMMask:
+    .long   0
 

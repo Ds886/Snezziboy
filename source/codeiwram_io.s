@@ -1,6 +1,6 @@
 /*
 -------------------------------------------------------------------
-Snezziboy v0.1
+Snezziboy v0.21
 
 Copyright (C) 2006 bubble2k
 
@@ -22,8 +22,6 @@ GNU General Public License for more details.
 @ IO routines
 @=========================================================================
 
-    .align 4
-
 @-------------------------------------------------------------------------
 @ No IO operation
 @-------------------------------------------------------------------------
@@ -38,8 +36,9 @@ IONOP:
 @=========================================================================
 gbaFCount:          .byte   0
 gbaVBlankFlag:      .byte   0           @ for v-sync
+                    .byte   0
+                    .byte   0
 
-    .align  4
 
 
 @-------------------------------------------------------------------------
@@ -97,6 +96,7 @@ hblankInterrupt:
 
     bx      lr
 
+
 @-------------------------------------------------------------------------
 @ GBA vertical blank
 @-------------------------------------------------------------------------
@@ -117,57 +117,45 @@ vblankInterrupt:
     bx      lr
 
 
+@=========================================================================
+@ SAVE RAM Input/Output
+@=========================================================================
+R_SAV:
+    mov     r1, #0
+    ldr     r2, =SaveRAMMask
+    ldr     r2, [r2]
+    cmp     r2, #0
+    bxeq    lr
+
+    and     r0, r0, r2
+    add     r0, r0, #0x0e000000
+    ldrb    r1, [r0]
+    
+    bx      lr
+
+W_SAV:
+    ldr     r2, =SaveRAMMask
+    ldr     r2, [r2]
+    cmp     r2, #0
+    bxeq    lr
+    
+    and     r0, r0, r2
+    add     r0, r0, #0x0e000000
+    strb    r1, [r0]
+
+    bx      lr
 
 @=========================================================================
 @ Non-Maskable Interrupts
 @=========================================================================
-    SetText "NMI"
-    .align  4
 regHTime:   .word   0
 regVTime:   .word   0
 regVTime2:  .word   0
 regNMI:     .byte   0
 regIRQFlag: .byte   0
-    .align  4
-/*
-.macro SetInterruptTimeout      TimeoutCycle, TimeoutAddr
-    stmfd   sp!, {r3}
-    ldr     r0, SnesCycleDelta
-    add     r0, r0, SnesCYCLES
-    ldr     r1, =CYCLES_MAX
-    cmp     r0, r1
-    subge   r0, r0, r1              @ r0 = current SNES CPU cycle
+            .byte   0
+            .byte   0
 
-    mov     r2, r0
-    ldr     r1, \TimeoutCycle
-    subs    r0, r0, r1              @ r0 = current CPU cycle - timeout cycle
-    
-    ldrpl   r1, =CYCLES_MAX         @
-    subpl   r0, r0, r1              @ then r0 = (current cycle - timeout cycle) - CYCLES_MAX
-
-    ldr     r1, =\TimeoutAddr       @ if the timeout addr is the same, then change the timeout
-    ldr     r3, InterruptAddr
-    cmp     r1, r3
-    beq     1f
-
-    cmp     r0, SnesCYCLES          @ if not, check if( r0 < current timeout )
-    blt     2f                      @ skip if the timeout is greater
-
-1:
-    mov     SnesCYCLES, SnesCYCLES, lsl #20
-    add     SnesCYCLES, r0, SnesCYCLES, lsr #20     @ set the IRQ timeout
-
-    sub     r2, r2, r0              @ r2 = current CPU cycle - IRQ timeout
-    ldr     r0, =CYCLES_MAX*2
-    cmp     r2, r0
-    subge   r2, r2, r0, lsr #1
-    str     r2, SnesCycleDelta
-
-    str     r1, InterruptAddr       @ set the IRQ timeout address
-2:
-    ldmfd   sp!, {r3}
-.endm
-*/
 @-------------------------------------------------------------------------
 @ 0x4200 NMITIMEN - Interrupt Enable Flags
 @-------------------------------------------------------------------------
@@ -473,7 +461,6 @@ HDMA_WriteJump2:
 @=========================================================================
 @ DMA
 @=========================================================================
-    SetText     "DMA"
 regDMAControl:      .byte 0,0,0,0,0,0,0,0       
 regDMADest:         .byte 0,0,0,0,0,0,0,0
 regDMASourceL:       
@@ -622,7 +609,7 @@ regDMACycles:   .word   0
 regDMAEnable:   .byte   0
 regHDMAEnable:  .byte   0
 regHDMAEnable2: .byte   0
-    .align  4
+                .byte   0
 
 W420B:
     strb    r1, regDMAEnable
@@ -886,7 +873,6 @@ vblankFlag:         .word   0
 @=========================================================================
 @ keypad stuff
 @=========================================================================
-    SetText     "KEYPAD--"
 keypadRead:         .word   0
 regJoyA:	        .hword	0xffff
 regJoyB:	        .hword	0xffff
@@ -953,6 +939,21 @@ snesRenderScreen:
 renderScreen:
 
     @---------------------------------
+    @ enabled/disable BGs and OBJs
+    @---------------------------------
+    ldr     r2, =0x04000000 
+    ldrh    r0, [r2]
+    ldrb    r1, regMainScreen
+    ldrb    r2, regSubScreen
+    orr     r1, r1, r2
+
+    bic     r0, r0, #0x1f00
+    and     r1, r1, #0x1f
+    orr     r0, r0, r1, lsl #8
+    ldr     r2, =0x04000000 
+    strh    r0, [r2]
+
+    @---------------------------------
     @ copy v offsets
     @---------------------------------
     ldr     r1, =regBG1VOffsetB
@@ -964,14 +965,6 @@ renderScreen:
     strh    r0, [r1], #4
     ldrh    r0, [r1, #2]
     strh    r0, [r1], #4
-
-    @---------------------------------
-    @ OAM reset
-    @---------------------------------
-    ldr     r2, regOAMAddrLo
-    bic     r2, r2, #0xfe00
-    mov     r2, r2, lsl #1
-    str     r2, regOAMAddrInternal
 
     @---------------------------------
     @ copy all BG's HOffset
@@ -1132,23 +1125,17 @@ vBlankRenderFrame:
 @ Screen/backgrounds
 @=========================================================================
 
-    .align  4
-    SetText     "INIDSP"
-    .align  4
 regOAMAddrInternal: .word   0
+
 regInitDisp:        .byte   0
 regObSel:           .byte   0
 regOAMAddrLo:       .byte   0
 regOAMAddrHi:       .byte   0
-                    .byte   0
-                    .byte   0
 
-regBGMode:          .byte   0
+regBGMode:          .byte   0xff
 regBGModePrev:      .byte   0
 regMOSAIC:          .byte   0
-
 regSnesVideoDirty:  .byte   0
-    .align  4
 
 @-------------------------------------------------------------------------
 @ 0x2100 - INIDISP
@@ -1211,13 +1198,7 @@ W2101:
 @-------------------------------------------------------------------------
 W2102:
     strb    r1,regOAMAddrLo
-    
-    @ sets the internal OAM address
-    ldrh    r2, regOAMAddrLo
-    bic     r2, r2, #0xfe00
-    mov     r2, r2, lsl #1
-    strh    r2, regOAMAddrInternal
-    bx      lr
+    b       W2103_SetAddr
 
 @-------------------------------------------------------------------------
 @ 0x2103 - OAMADDH
@@ -1228,6 +1209,7 @@ W2102:
 W2103:
     strb    r1,regOAMAddrHi
 
+W2103_SetAddr:
     @ sets the internal OAM address
     ldrh    r2, regOAMAddrLo
     bic     r2, r2, #0xfe00
@@ -1298,8 +1280,6 @@ W2106:
 @ IO registers
 @-------------------------------------------------------------------------
 
-    .align  4
-
     .equ        SCANLINE_BLANK,         225
     .equ        SCANLINE_BLANK_OSCAN,   241
 
@@ -1340,7 +1320,7 @@ regBG4NBA:          .byte   0
 @   x           = Tilemap horizontal mirroring
 @   y           = Tilemap veritcal mirroring
 @-------------------------------------------------------------------------
-    .align  4
+
 W2107:
     ldrb    r2, regBG1SC
     cmp     r2, r1
@@ -1390,7 +1370,8 @@ W210A:
 @-------------------------------------------------------------------------
 prevW210B:  .byte   0
 prevW210C:  .byte   0
-    .align  4
+            .byte   0
+            .byte   0
 
 W210B:
     ldrb    r0, prevW210B
@@ -1538,9 +1519,10 @@ W2133:
 @-------------------------------------------------------------------------
 @ IO registers
 @-------------------------------------------------------------------------
-    .align 4
 regVideoMain:       .byte   0
-    .align 4
+                    .byte   0
+                    .byte   0
+                    .byte   0
 
 @-------------------------------------------------------------------------
 @ 0x2115 VMAIN - Video Port Control
@@ -1662,10 +1644,10 @@ W2115_AddrXlateOp:
 @-------------------------------------------------------------------------
 @ IO registers
 @-------------------------------------------------------------------------
-    .align 4
 regVRAMAddrLo:      .byte   0
 regVRAMAddrHi:      .byte   0
-    .align 4
+                    .byte   0
+                    .byte   0
 
 @-------------------------------------------------------------------------
 @ 0x2116  VMADDL - VRAM Address low byte
@@ -1756,8 +1738,6 @@ W2119_IncCount:
 @ Special VRAM functions
 @=========================================================================
 
-    SetText     "VRAMJUMP"
-
 @-------------------------------------------------------------------------
 @ Jump table for VRAM writes (idea from SNESAdvance)
 @ each is a 2 kilobyte (0x800) block
@@ -1797,15 +1777,13 @@ VRAMBGColors:
 @=========================================================================
 @ Mode 7 Stuff (also the multiply operation)
 @=========================================================================
-    .align  4
 regM7A:         .hword   0
 regM7B:         .hword   0
 regM7C:         .hword   0
 regM7D:         .hword   0
 regM7X:         .hword   0
 regM7Y:         .hword   0
-regMulResult:   .long   0
-    .align  4
+regMulResult:   .word    0
 
 W211B:
     ldrh    r0,regM7A
@@ -1875,10 +1853,9 @@ R2136:
 @=========================================================================
 @ CGRAM
 @=========================================================================
-    .align  4
 regCGRAMAddr:   .word   0
 regCGRAMLatch:  .word   0
-    .align  4
+
 @-------------------------------------------------------------------------
 @ 0x2121: CGADD - CGRAM Address
 @-------------------------------------------------------------------------
@@ -1931,31 +1908,17 @@ W2122:
 @=========================================================================
 @ Main/sub screen and color math
 @=========================================================================
-    .align  4
 regMainScreen:  .byte   0
 regSubScreen:   .byte   0
 regColorMath:   .byte   0
-regBreak:   .byte   0
-    .align  4
+                .byte   0
 
 W212C:
-    ldrb    r0, regMainScreen
-    cmp     r0, r1
-    bxeq    lr
-
     strb    r1, regMainScreen
-    mov     r0, #1
-    strb    r0, regSnesVideoDirty
     bx      lr
 
 W212D:
-    ldrb    r0, regSubScreen
-    cmp     r0, r1
-    bxeq    lr
     strb    r1, regSubScreen
-    
-    mov     r0, #1
-    strb    r0, regSnesVideoDirty
     bx      lr
 
 W2130:
@@ -1969,14 +1932,12 @@ W2131:
 @=========================================================================
 @ H/V Counters
 @=========================================================================
-    .align  4
 regHCounter:    .word   0
 regVCounter:    .word   0
 regPALNTSC:     .byte   0           @ 1 for PAL, 0 for NTSC
                 .byte   0
                 .byte   0
                 .byte   0
-    .align  4
     
 @-------------------------------------------------------------------------
 @ 0x2137 - SLHV - Software Latch for H/V Counter
@@ -2030,7 +1991,6 @@ R213F:
 @ APU (SPC-700 registers)
 @=========================================================================
 
-    .align  4
 regAPU0:            .byte   0
 regAPU1:            .byte   0
 regAPUReadCount:    .byte   0
@@ -2086,11 +2046,11 @@ spcRead4:
     bx      lr
 
 spcRead3:
-    mov     r1, #0xbb                   @ high byte
+    mov     r1, #0xaa                   @ high byte
 	bx      lr
 
 spcRead2:
-    mov     r1, #0xaa                   @ low byte
+    mov     r1, #0xbb                   @ low byte
 	bx      lr
 
 spcRead1:       
@@ -2119,10 +2079,8 @@ W2143:
 @ WRAM
 @=========================================================================
 
-    .align  4
 regWRAMAddr:                .long   0
 regWRAMTranslatedAddr:      .long   0
-    .align  4
 
 @-------------------------------------------------------------------------
 @ 0x2180
@@ -2172,11 +2130,8 @@ W218xTranslate:
 @ Joypad 
 @=========================================================================
 
-    .align  4
 regJoyState:    .word   0
 regJoyLatch:    .word   0
-
-    .align  4
 
 @-------------------------------------------------------------------------
 @ 0x4016 rwb++++ JOYSER0 - NES-style Joypad Access Port 1
@@ -2196,7 +2151,7 @@ R4016:
     moveq   r1, #0
     movne   r1, #1
     mov     r0, r0, lsl #1
-    and     r0, r0, #1
+    orr     r0, r0, #1
     strh    r0, regJoyLatch
     bx      lr
 
@@ -2229,14 +2184,14 @@ R421F:
 @ Mul/Divide registers
 @=========================================================================
 
-    .align  4
 regMulA:        .byte   0
 regDivisor:     .byte   0
-    .align  4
+                .byte   0
+                .byte   0
 regMulResult2:  .word   0
 regDividend:    .word   0
 regDivResult:   .word   0
-    .align  4
+
 @-------------------------------------------------------------------------
 @ 0x4202 WRMPYA - Multiplicand A
 @-------------------------------------------------------------------------
@@ -2329,7 +2284,6 @@ R4217:
 @=========================================================================
 @ Renderer
 @=========================================================================
-    SetText     "RENDER"
 
 @-------------------------------------------------------------------------
 @ Renderer variables
@@ -2337,7 +2291,7 @@ R4217:
 renderMode1BG1Priority:     .byte   0x01        @ (either 0xff=auto, 0x00, 0x01, 0x02, 0x03)
 renderMode1BG2Priority:     .byte   0x02        @ (either 0xff=auto, 0x00, 0x01, 0x02, 0x03)
 renderMode1BG3Priority:     .byte   0x00        @ (either 0xff=auto, 0x00, 0x01, 0x02, 0x03)
-.byte 0
+                            .byte 0
 
 bgCurTileOffset:  .word   0x06010000
 
@@ -2560,7 +2514,6 @@ CopyObjChar_16Loop:
 @       from SNES VRAM base (0x02020000)
 @=========================================================================
 
-    SetText "VRAMNOP"
 @-------------------------------------------------------------------------
 @ Do nothing
 @-------------------------------------------------------------------------
@@ -2648,11 +2601,11 @@ VRAMWriteBGChar:
     add     r6, r6, r0, lsl #1
     add     r3, r3, r6
 
+VRAMWriteBGCharFinal:
     ldr     r4, bgCurTileOffset
     cmp     r3, r4
     bge     VRAMWriteBGCharEnd
 
-VRAMWriteBGCharFinal:
     mov     r8, #1
     mov     lr, pc
     bx      r7
@@ -2661,8 +2614,6 @@ VRAMWriteBGCharEnd:
     ldmfd   sp!, {r4-r8, lr}
     ldmfd   sp!, {r3}
     bx      lr
-
-
 
 
 @-------------------------------------------------------------------------
@@ -2731,4 +2682,5 @@ yOffset:
 @-------------------------------------------------------------------------
 configCursor:
     .word   0
+
 

@@ -1,6 +1,6 @@
 /*
 -------------------------------------------------------------------
-Snezziboy v0.1
+Snezziboy v0.21
 
 Copyright (C) 2006 bubble2k
 
@@ -908,13 +908,12 @@ ADCD_m1:
 
     @ update N/V flag only if we are not in immediate mode
     .ifeq   immMode-0
+        mov     SnesNZ, #0
+    
         tsts    SnesA, r1, ror #mBit
-        biceq   SnesNZ, SnesNZ, #0x00ff
-        biceq   SnesNZ, SnesNZ, #0xff00
         orrne   SnesNZ, SnesNZ, #0x1
 
         tsts    r1, #(1 << (mBit-1))
-        biceq   SnesNZ, SnesNZ, #SnesFlagNH
         orrne   SnesNZ, SnesNZ, #SnesFlagNH
         
         tsts    r1, #(1 << (mBit-2))
@@ -1346,6 +1345,16 @@ ADCD_m1:
     mov     SnesA, SnesD, lsr #16
     mov     SnesA, SnesA, ror #mBit
     mov     SnesNZ, SnesD, lsr #16
+
+    @ version 0.21 fix
+    @
+    .ifeq   mBit-8
+        @ store high byte into B
+        @
+        and     r0, SnesD, #0xff000000
+        str     r0, SnesB
+    .endif
+    
     AddPC   \pcinc, \cycles
 .endm
 
@@ -1374,6 +1383,16 @@ ADCD_m1:
     mov     SnesA, SnesSP, lsr #16
     mov     SnesA, SnesA, ror #mBit
     mov     SnesNZ, SnesSP, lsr #16
+    
+    @ version 0.21 fix
+    @
+    .ifeq   mBit-8
+        @ store high byte into B
+        @
+        and     r0, SnesSP, #0xff000000
+        str     r0, SnesB
+    .endif
+    
     AddPC   \pcinc, \cycles
 .endm
 
@@ -1793,7 +1812,9 @@ ADCD_m1:
 
 .macro OpPEI mode, pcinc, cycles
     DPIndirect
-    mov     r0, r1
+    
+    @ version 0.21 fix
+    mov     r1, r0
     Push16
 
     AddPC   \pcinc, \cycles
@@ -1996,9 +2017,10 @@ ADCD_m1:
     Pop24
 
     @ save the PBR
-    and     r2, r1, #0x000000ff
+    add     r1, r1, #1
+    and     r2, r1, #0x00ff0000
     bic     SnesPBR, SnesPBR, #0x000000ff
-    orr     SnesPBR, SnesPBR, r2
+    orr     SnesPBR, SnesPBR, r2, lsr #16
 
     @ Translate the address and move it to PC
     mov     r0, r1
@@ -2012,6 +2034,7 @@ ADCD_m1:
 
     @ add PBR to address
     add     r0, r1, SnesPBR, lsl #16
+    add     r0, r0, #1
     TranslateAndSavePC  1   
     AddPC   \pcinc, \cycles
 .endm
@@ -2022,6 +2045,7 @@ ADCD_m1:
 
     Pop24
     mov     r0, r1
+    add     r0, r0, #1
     TranslateAndSavePC  1
 
     @bic     SnesIRQ, SnesIRQ, #IRQ_NMI
@@ -2045,6 +2069,7 @@ ADCD_m1:
 @ Others 
 @=========================================================================
 .macro OpBRK mode, pcinc, cycles
+    mov     r11, r11
     AddPC   \pcinc, \cycles
 .endm
 
@@ -2053,11 +2078,16 @@ ADCD_m1:
 .endm
 
 .macro  OpWAI mode, pcinc, cycles
-    mov     r11, r11
     mov     SnesCYCLES, SnesCYCLES, lsl #20      @ set the cycles to zero to trigger next interrupt
     mov     SnesCYCLES, SnesCYCLES, lsr #20 
 
     @ force interrupt to occur
+    @
+    ldr     r0, regNMI                          
+    mov     r0, r0, lsr #4
+    ldr     r1, =ScanlineSkipTable
+    mov     lr, pc
+    ldr     pc, [r1, r0, lsl #2]
 
     AddPC   \pcinc, 0
 .endm
@@ -2069,7 +2099,7 @@ ADCD_m1:
 
     @ skip scan line
     @
-    ldr     r0, regNMI                          @ is the H interrupt set (and V interrupt not set)?
+    ldr     r0, regNMI                          
     mov     r0, r0, lsr #4
     ldr     r1, =ScanlineSkipTable
     mov     lr, pc
@@ -2081,8 +2111,8 @@ ADCD_m1:
     orr     r0, r0, #0xD0                       @ r0 = $DO (BNE) / $FO (BEQ)
     
     orr     r1, r1, #0x80
-    mov     r1, r1, lsl #24
-    mov     r1, r1, asr #24                     @ r1 = -ve offset
+    mov     r1, r1, lsl #25
+    mov     r1, r1, asr #25                     @ r1 = -ve offset
 
     ldr     lr, [EmuDecoder, r0, lsl #3]
     add     pc, lr, #4                          @ skip the first instruction of the branch 

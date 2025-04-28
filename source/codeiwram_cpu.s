@@ -1,6 +1,6 @@
 /*
 -------------------------------------------------------------------
-Snezziboy v0.1
+Snezziboy v0.21
 
 Copyright (C) 2006 bubble2k
 
@@ -29,7 +29,6 @@ GNU General Public License for more details.
 @-------------------------------------------------------------------
 @ Decoder Table 
 @-------------------------------------------------------------------
-    SetText "DECO"
 m0x0Decoder:
     .long BRK_m0x0,S_28,      ORA_m0x0,DXI_26,    COP_m0x0,S_28,      ORA_m0x0,DS_24,     TSB_m0x0,D_25,      ORA_m0x0,D_23,      ASL_m0x0,D_25,      ORA_m0x0,DIL_26     
     .long PHP_m0x0,PHP_m0x0,  ORA_m0x0,IMM_m0,    ASLA_m0x0,REGA_12,  PHD_m0x0,PHD_m0x0,  TSB_m0x0,A_36,      ORA_m0x0,A_34,      ASL_m0x0,A_36,      ORA_m0x0,AL_45      
@@ -164,8 +163,6 @@ m1x1Decoder:
     .long SED_m1x1,SED_m1x1,  SBC_m1x1,AY_34,     PLX_m1x1,PLX_m1x1,  XCE_m1x1,XCE_m1x1,  JSR_m1x1,AXI_J36,   SBC_m1x1,AX_34,     INC_m1x1,AX_37,     SBC_m1x1,ALX_45     
 
 
-    SetText "DECOEND"
-
 
 @-------------------------------------------------------------------
 @ IO Reads/Writes
@@ -220,7 +217,6 @@ IOWrite16:
 
     add     pc, lr, #12
 
-        SetText "DPCACHE"
 @-------------------------------------------------------------------
 @ First bank for DP addressing
 @-------------------------------------------------------------------
@@ -228,6 +224,7 @@ DPCache:
     .rept   16
     .long   0
     .endr
+
 
 @-------------------------------------------------------------------
 @ Caching for memory mapping 
@@ -239,6 +236,7 @@ MapCache:
     .rept   16
     .long   0
     .endr
+
 
 @-------------------------------------------------------------------
 @ Addressing Modes 
@@ -630,9 +628,9 @@ PLP_m0x0:   PLP_m0x1:   PLP_m1x0:   PLP_m1x1:   OpPLP   NA, 1, 4
 @ Branch Opcodes
 @-------------------------------------------------------------------------
 
-RTI_m0x0:   RTI_m0x1:   RTI_m1x0:   RTI_m1x1:   OpRTI   NA, 1, 7
-RTL_m0x0:   RTL_m0x1:   RTL_m1x0:   RTL_m1x1:   OpRTL   NA, 1, 6
-RTS_m0x0:   RTS_m0x1:   RTS_m1x0:   RTS_m1x1:   OpRTS   NA, 1, 6
+RTI_m0x0:   RTI_m0x1:   RTI_m1x0:   RTI_m1x1:   OpRTI   NA, 0, 7
+RTL_m0x0:   RTL_m0x1:   RTL_m1x0:   RTL_m1x1:   OpRTL   NA, 0, 6
+RTS_m0x0:   RTS_m0x1:   RTS_m1x0:   RTS_m1x1:   OpRTS   NA, 0, 6
 
 BRL_m0x0:   BRL_m0x1:   BRL_m1x0:   BRL_m1x1:   OpBRL   NA, 3, 0
 
@@ -661,7 +659,7 @@ SnesPCOffset:       .long   0
 
 BRK_m0x0:   BRK_m0x1:   BRK_m1x0:   BRK_m1x1:   OpBRK   NA, 2, 0
 COP_m0x0:   COP_m0x1:   COP_m1x0:   COP_m1x1:   OpCOP   NA, 2, 0
-WAI_m0x0:   WAI_m0x1:   WAI_m1x0:   WAI_m1x1:   OpWAI   NA, 1, 0
+WAI_m0x0:   WAI_m0x1:   WAI_m1x0:   WAI_m1x1:   OpWAI   NA, 0, 0
 
 @ specially added instructions
 @
@@ -749,23 +747,6 @@ SkipToVBlankVTime:
     str     r1, VerticalCount
     bx      lr
 
-/*
-@-------------------------------------------------------------------------
-@ The next scanline (V-IRQ)
-@-------------------------------------------------------------------------
-ScanlineNextVIRQ:
-    ScanlineAdd
-
-    @Fetch
-
-@-------------------------------------------------------------------------
-@ The next scanline 
-@-------------------------------------------------------------------------
-ScanlineNext:
-    ScanlineAdd
-    
-    @Fetch
-*/
 
 .macro ScanlineEndFetch
     subs    SnesCYCLES, SnesCYCLES, #(CYCLES_PER_SCANLINE<<CYCLE_SHIFT)
@@ -775,10 +756,12 @@ ScanlineNext:
     b       ScanlineEnd
 .endm
 
+
 @-------------------------------------------------------------------------
 @ The begining of fetch, test interrupt
 @-------------------------------------------------------------------------
 Fetch:
+
 
 @-------------------------------------------------------------------------
 @ Fetch, decode, jump
@@ -807,17 +790,34 @@ ScanlineEnd:
 	bne		IRQJump1
 
     @---------------------------------
-    @ vsync to gba's vblank
+    @ sync to gba's vblank
     @---------------------------------
 1:  ldrb    r0, gbaVBlankFlag
-    tsts    r0, r0
+    cmp     r0, #0
     beq     1b
-    sub     r0, r0, #1
+    mov     r0, #0
     strb    r0, gbaVBlankFlag
+    
+    @---------------------------------
+    @ OAM reset
+    @---------------------------------
+    ldr     r2, regOAMAddrLo
+    bic     r2, r2, #0xfe00
+    mov     r2, r2, lsl #1
+    str     r2, regOAMAddrInternal
 
     mov     r2, #0x80
     strb    r2, vblankFlag
     ldrb    r0, regNMI
+    
+    @---------------------------------
+    @ 'auto joypad read'
+    @---------------------------------
+    tsts    r0, #1                              @ auto joypad read
+    ldr     r1, =0xffff
+    ldr     r2, =regJoyLatch
+    str     r1, [r2]
+    
     tsts    r0, #0x80
     beq     IRQJump1
     ExecuteInterrupt    NMIaddress
@@ -832,8 +832,12 @@ Scanline0:
     str     r1, VerticalCount
     mov     r0, #0
     strb    r0, vblankFlag
-	bl      snesRenderScreen
 
+    @---------------------------------
+    @ render the screen
+    @---------------------------------
+	bl      snesRenderScreen
+	
 IRQJump2:
     ldr     pc, IRQJumpAddress                  @ self-modifying, (ldr pc,=IRQJumpAddress or NOP)
     ScanlineEndFetch
@@ -855,6 +859,7 @@ IRQJumpCode:
     .word   0,0
 
     .ltorg
+
 
 @-------------------------------------------------------------------------
 @ Miscellaneous

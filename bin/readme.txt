@@ -59,10 +59,22 @@ Advance were very similar to the SNES, therefore allowing an emulator to
 exploity the Gameboy Advance hardware to accelerate the graphics processing.
 
 The emulator is far from complete as of 12 May 2006, but it is already 
-running some games at fairly decent speed, even though it is running them at 
-full. Gradius III and Castlevania X seems to run very well. 
+running some games at fairly decent speed, even though it is not running them 
+at full. 
 
-This emulator will be made open source, and by doing so, I hope to event
+As at 28 May 2006, the following games are known to be working fairly well:
+ - Castlevania X
+ - Super Castlevania 4 (no mode 7 graphics yet)
+ - Gradius 3
+ - Megaman X
+ - Megaman 7
+ - Darius Twin
+ - Super Mario World (some garbled/missing graphics)
+ - SUper Mario All-Stars (Super Mario Bro, The Lost Worlds)
+ - Kirby's Avalanche (some garbled graphics)
+ - Tetris Attack
+
+This emulator will be made open source, and by doing so, I hope to invite
 competent developers to further enhance the project, and if possible help in
 identifying and fixing bugs.
 
@@ -104,9 +116,7 @@ The following three files must be in the same folder:
    patcher before playing. I recommend turning all options except 
    Compress off).
 
-5. During the game, use (L+R+start) to access the configuration menu. You can
-   use this menu to disable backgrounds, or shift background priorities 
-   forwards and backwards
+5. During the game, use (L+R+start) to access the configuration menu.
 
 
 5. Patch Data
@@ -124,7 +134,7 @@ fields that the Snezziboy Builder understands are:
    Field #2  : Game name
    Last Field: Patch information
 
-The reset of the fields between Field #2 and the Last Field are ignored
+The rest of the fields between Field #2 and the Last Field are ignored
 entirely.
 
 The patch information takes the following format:
@@ -145,6 +155,5 @@ file, the Snezziboy Builder will not patch it.
 
 Flubba, Loopy		For their bold attempt in SNES emulation on the GBA.
 anomie			For the SNES documentation on IO registers and timings.
-ZSNES Team		For their wonderful ZSNES emulator
-Snes9x Team		For their wonderful Snes9x emulator
-
+ZSNES Team		For their ZSNES emulator
+Snes9x Team		For their Snes9x emulator

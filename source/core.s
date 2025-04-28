@@ -1,6 +1,6 @@
 /*
 -------------------------------------------------------------------
-Snezziboy v0.1
+Snezziboy v0.21
 
 Copyright (C) 2006 bubble2k
 
@@ -64,7 +64,6 @@ _start:
 @-------------------------------------------------------------------------
     .include    "macroopcode.s"
 
-    @.equ    debug, 0        @ set to 1 to enable vbadump debugging
 	.equ	debugMemoryBase, 0x02030000
 
 .macro  SetText t
