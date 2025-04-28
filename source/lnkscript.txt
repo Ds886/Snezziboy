@@ -1,0 +1,23 @@
+SECTIONS
+{
+  .rom 0x08000000 :
+  { 
+    *(.rom) 
+  }
+
+  .iwram 0x03000000 : AT( ADDR(.rom)+SIZEOF(.rom) )
+  { 
+    *(.iwram) 
+  }
+
+  .rom2 ADDR(.rom)+SIZEOF(.rom)+SIZEOF(.iwram) : AT( ADDR(.rom)+SIZEOF(.rom)+SIZEOF(.iwram) )
+  { 
+    *(.rom2) 
+  }
+
+  .ewram 0x02000000 : AT( ADDR(.rom)+SIZEOF(.rom)+SIZEOF(.iwram)+SIZEOF(.rom2) )
+  { 
+    *(.ewram) 
+  }
+}
+
