@@ -10,4 +10,3 @@ if errorlevel 1 goto end
 gcc snezzi.c -o snezzi.exe
 if errorlevel 1 goto end
 
-:end

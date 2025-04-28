@@ -113,6 +113,8 @@ SetDebugState_UpdateState:
     mov		r0, SnesSP, lsr #16
     SetDebugValue	0x10, r0
     ComposeP
+    tsts	SnesMXDI, #SnesFlagE
+    orrne   r1, r1, #0x100
     SetDebugValue	0x18, r1
     
     mov     r0, #0
@@ -341,6 +343,15 @@ SoftReset:
 SetInterruptVectors:
     bl      configUpdateKeyMap
 
+    ldr     r0, =VECTOR_COUNTRY
+    TranslateAddress
+    ldrb    r0, [r0]
+    cmp     r0, #1
+    movgt   r1, #1
+    movle   r1, #0
+    ldr     r2, =regPALNTSC
+    strb    r1, [r2]
+
     ldr     r0, =VECTOR_NMI
     TranslateAddress
     ldr     r1, =NMIaddress
@@ -365,6 +376,12 @@ SetInterruptVectors:
     TranslateAddress
     ReadAddr16
     TranslateAndSavePC
+    
+    ldr     r0, =SCANLINE_BLANK       @ if overscan=0, vblank = 225
+    sub     r0, r0, #255
+    sub     r0, r0, #7
+    ldr     r1, =vBlankScan
+    str     r0, [r1]
     
     ldr     SnesSP, =0x01FF0000         @ SP = ???, PBR = 0
     mov     SnesD, #0                   @ D = 0, DBR = 0
@@ -514,6 +531,7 @@ RenderEnableBG:
     ldrb    r3, [r3]
     orr     r1, r1, r3
 
+    bic     r0, r0, #0x7
     bic     r0, r0, #0x8f00
     and     r1, r1, #0x1f
     orr     r0, r0, r1, lsl #8
@@ -851,14 +869,26 @@ RenderCopyBGCNT:
     ldrb    r5, [r5]
     ldr     r6, =regBG2NBA
     ldrb    r6, [r6]
-    cmp     r0, #1                          @ are we doing BG1?
+    
+    cmp     r0, #1                          @ are we doing BG2?
     moveq   r1, #0                          @ if so, use block #0, temporarily.
+    
     cmp     r5, r6                          @ but is NBA for BG1 != BG2?
-    movne   r1, #1                          @ if so, use block #1 instead
+    beq     NBA_BG1_EQS_BG2
+    ldr     r3, =regBGMode
+    ldrb    r3, [r3]
+    and     r3, r3, #0x7
+    cmp     r3, #2                          @ are we in mode 2 and above? (mode 2 and above has only 2 backgrounds)
+    movge   r1, #2                          @ if so, use block #2
+    movlt   r1, #1                          @ otherwise, use block #1 instead
+    
+NBA_BG1_EQS_BG2:
     cmp     r0, #0                          @ are we doing BG1?
-    moveq   r1, #0                          @ if so, use block #0
-    cmp     r0, #2                          @ are we doing BG3?
+    moveq   r1, #0                          @ if so, always use block #0
+    
+    cmp     r0, #2                          @ are we doing BG3? (this won't happen for modes 2 and above)
     moveq   r1, #2                          @ if so, use block #2
+    
     mov     r5, #0x06000000
     add     r5, r5, r1, lsl #14             @ r5 = 0x0600?000 (GBA VRAM address for the characters)
     sub     r5, r5, r7, lsl #13
@@ -1896,7 +1926,7 @@ IORead:
     IO  0x001,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x2150-
     IO  0x001,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x2160-
     IO  0x001,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x2170-
-    IO  0x001,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x2180-
+    IO  0x001,  R2180,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x2180-
     IO  0x1e7,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x2190
 
     IO  0x001,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x4000
@@ -1904,7 +1934,7 @@ IORead:
     IO  0x01e,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x4020
     
     IO  0x001,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x4200
-    IO  0x001,  R4210,R4211,R4212,IONOP,R4214,R4215,R4216,R4217, R4218,R4219,IONOP,IONOP,R421C,R421D,IONOP,IONOP     @ 0x4210
+    IO  0x001,  R4210,R4211,R4212,IONOP,R4214,R4215,R4216,R4217, R4218,R4219,R421A,R421B,R421C,R421D,R421E,R421F     @ 0x4210
     IO  0x00e,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x4200
 
     IO  0x001,  R43x0,R43x1,R43x2,R43x3,R43x4,R43x5,R43x6,R43x7, R43x8,R43x9,R43xA,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x4300
@@ -1929,7 +1959,7 @@ IOWrite:
     IO  0x001,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x2150-
     IO  0x001,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x2160-
     IO  0x001,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x2170-
-    IO  0x001,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x2180-
+    IO  0x001,  W2180,W2181,W2182,W2183,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x2180-
     IO  0x1e7,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x2190
     
     IO  0x001,  IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP, IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP,IONOP     @ 0x4000

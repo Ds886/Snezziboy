@@ -31,6 +31,7 @@ char *anchor = "SMEMMAP0";
 char *iwramstart = ".IWRAMSTART";
 char *iwramend = ".IWRAMEND";
 
+int sramSizeBytes = 1;
 int mapper[16];
 int memorymap[256*8];
 
@@ -41,12 +42,12 @@ int memorymap[256*8];
 #define HROM(v)  (((v) & 0x0000FFFF)+(((v)) & ((romSize-1) & ~0xFFFF))) + (0x08000000+snesRomPosition)
 #define ROM(v)   ((v) & 0x000FFFFF) + (0x08000000+snesRomPosition)
 #define IO(v)    ((v) & 0x0000FFFF) | 0x80000000
-#define SRAM(v)  ((v) & 0x0000FFFF) | 0x0e000000
+#define SRAM(v)  ((v) & (sramSizeBytes-1)) | 0x0e000000
 #define SVEC(v)  ((v) & 0x000000FF) + 0x0203FF00
 
 
 int mp = 0;
-#define set(x,v) { memorymap[mp++] = (v((x)*0x2000)) -( (x)*0x2000); /*printf( "%8x -> %8x\n", (x)*0x2000, memorymap[x] );*/}
+#define set(x,v) { memorymap[mp++] = (v((x)*0x2000)) -( (x)*0x2000); /*printf( "%8x -> %8x\n", (x)*0x2000, memorymap[x] ); getch();*/ }
 
 #define map(s,e,m0,m1,m2,m3,m4,m5,m6,m7) \
     for( i=s; i<=e; i++ ) \
@@ -72,28 +73,28 @@ void formmemorymap( int loRom, int romSize ) // romSize in bytes
     {
         // LO ROM
         map( 0x00, 0x2f, LRAM,IO,  IO,  NOP, LROM,LROM,LROM,LROM);
-        map( 0x30, 0x3f, LRAM,IO,  IO,  NOP, LROM,LROM,LROM,LROM);
+        map( 0x30, 0x3f, LRAM,IO,  IO,  SRAM,LROM,LROM,LROM,LROM);
         map( 0x40, 0x6f, NOP, NOP, NOP, NOP, LROM,LROM,LROM,LROM);
         map( 0x70, 0x7d, SRAM,SRAM,SRAM,SRAM,LROM,LROM,LROM,LROM);
         map( 0x7e, 0x7e, LRAM,LRAM,LRAM,LRAM,LRAM,LRAM,LRAM,LRAM);
         map( 0x7f, 0x7f, HRAM,HRAM,HRAM,HRAM,HRAM,HRAM,HRAM,HRAM);
 
         map( 0x80, 0xaf, LRAM,IO,  IO,  NOP, LROM,LROM,LROM,LROM);
-        map( 0xb0, 0xbf, LRAM,IO,  IO,  NOP, LROM,LROM,LROM,LROM);
+        map( 0xb0, 0xbf, LRAM,IO,  IO,  SRAM,LROM,LROM,LROM,LROM);
         map( 0xc0, 0xff, LROM,LROM,LROM,LROM,LROM,LROM,LROM,LROM);
     }
     else 
     {
         // HI ROM
         map( 0x00, 0x2f, LRAM,IO,  IO,  NOP, HROM,HROM,HROM,HROM);
-        map( 0x30, 0x3f, LRAM,IO,  IO,  NOP, HROM,HROM,HROM,HROM);
+        map( 0x30, 0x3f, LRAM,IO,  IO,  SRAM,HROM,HROM,HROM,HROM);
         map( 0x40, 0x6f, NOP, NOP, NOP, NOP, HROM,HROM,HROM,HROM);
         map( 0x70, 0x7d, SRAM,SRAM,SRAM,SRAM,HROM,HROM,HROM,HROM);
         map( 0x7e, 0x7e, LRAM,LRAM,LRAM,LRAM,LRAM,LRAM,LRAM,LRAM);
         map( 0x7f, 0x7f, HRAM,HRAM,HRAM,HRAM,HRAM,HRAM,HRAM,HRAM);
 
         map( 0x80, 0xaf, LRAM,IO,  IO,  NOP, HROM,HROM,HROM,HROM);
-        map( 0xb0, 0xbf, LRAM,IO,  IO,  NOP, HROM,HROM,HROM,HROM);
+        map( 0xb0, 0xbf, LRAM,IO,  IO,  SRAM,HROM,HROM,HROM,HROM);
         map( 0xc0, 0xff, HROM,HROM,HROM,HROM,HROM,HROM,HROM,HROM);
     }
 }
@@ -383,6 +384,7 @@ int main( int argc, char **argv )
         unsigned long crc = get_crc( fp2 );
         printf( "CRC Checksum: %8X\n", crc );
 
+
         //-------------------------------------------
         // load and write the emulator core
         //-------------------------------------------
@@ -450,6 +452,26 @@ int main( int argc, char **argv )
         else
             printf( "Memory Map  : HiROM\n" );
         
+
+        //-------------------------------------------
+        // obtain SRAM size from the header
+        //-------------------------------------------
+        int sramSize = 0;
+        if( loROM )
+            sramSize = romBuffer[32704+24];
+        else
+            sramSize = romBuffer[65472+24];
+        if( sramSize==0 )
+            sramSizeBytes = 1;
+        else if( sramSize==1 )
+            sramSizeBytes = 16*1024/8;
+        else if( sramSize==2 )
+            sramSizeBytes = 32*1024/8;
+        else if( sramSize==3 )
+            sramSizeBytes = 64*1024/8;
+        
+        printf( "SRAM Size   : %d KB\n", sramSizeBytes/1024 );
+
 
         //-------------------------------------------
         // do the necesasry patching

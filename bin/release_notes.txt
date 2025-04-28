@@ -1,0 +1,36 @@
+v0.2 
+----
+
+Bug Fixes:
+
+- Fixed vertical-sync so that games appear much smoother now.
+- Fixed the TXS instruction so that processor flags are not updated
+- Fixed the IO for WRAM write at IO addresses $2180-3
+  (Megaman7 sprites now appear)
+- Incorporated SNES Advance's SBC/ADC accurate implementations
+  (Super Mario World now works)
+- Used a jump table to implement scanline skipping for $42 and $DB opcodes
+- Fixed scanline skipping to proceed to the next immediate interrupt when NMI, V+H IRQ is enabled.
+  (MegamanX, Megaman7 runs faster)
+- Fixed 256 color background update (for mode 3)
+  (Super Mario All-Stars title and menu selection now visible, 
+  Super Mario Bros, The Lost Worlds subgames seem playable with appropriate speed patch)
+- Fixed VRAM allocation for modes 2 and above 
+  (able to see blobs that have been dropped on the field)
+
+Known Issues:
+
+- VRAM writing sometime still screws up 
+  (Kirby's avalanche: can be worked around by pressing L+R+start to go to the config, and exiting
+  the config screen again)
+
+
+v0.1a
+----
+Included snezzi.gba emulator core into the v0.1 package.
+
+
+v0.1
+----
+First release, no changes.
+

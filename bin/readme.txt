@@ -8,6 +8,7 @@ Contents
 3. File Manifest
 4. How to use
 5. Patch Data
+6. Credits
 
 
 1. Licensing
@@ -103,6 +104,9 @@ The following three files must be in the same folder:
    patcher before playing. I recommend turning all options except 
    Compress off).
 
+5. During the game, use (L+R+start) to access the configuration menu. You can
+   use this menu to disable backgrounds, or shift background priorities 
+   forwards and backwards
 
 
 5. Patch Data
@@ -134,4 +138,13 @@ tells Snezziboy to:
 
 If the checksum of your SNES ROM does not match that in the patch data
 file, the Snezziboy Builder will not patch it. 
+
+
+6. Credits
+~~~~~~~~~~~~~~~~~~~~~
+
+Flubba, Loopy		For their bold attempt in SNES emulation on the GBA.
+anomie			For the SNES documentation on IO registers and timings.
+ZSNES Team		For their wonderful ZSNES emulator
+Snes9x Team		For their wonderful Snes9x emulator
 

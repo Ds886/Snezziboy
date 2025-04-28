@@ -42,12 +42,14 @@ GNU General Public License for more details.
 
     .equ        NUM_SCANLINES,          262
     .equ        CYCLES_PER_SCANLINE,    227
+    .equ        CYCLES_HBLANK,          182
 
 
 
 @-------------------------------------------------------------------------
 @ Interrupt Vectors
 @-------------------------------------------------------------------------
+    .equ        VECTOR_COUNTRY, 0x0000FFD9
     .equ        VECTOR_IRQ,     0x0000FFEE
     .equ        VECTOR_RESET,   0x0000FFFC
     .equ        VECTOR_NMI,     0x0000FFEA
@@ -429,7 +431,6 @@ GNU General Public License for more details.
 @ Indirect ($1234)
 @-------------------------------------------------------------------------
 .macro  IndirectPBR
-    @AddPBR
     TranslateAddress    0
     ReadAddr16
     AddPBR
@@ -448,8 +449,8 @@ GNU General Public License for more details.
 @ X Index
 @-------------------------------------------------------------------------
 .macro IndexedX
-    mov r2, SnesX, lsl #16
-    add r0, r0, r2, lsr #16
+    mov     r2, SnesX, lsl #16
+    add     r0, r0, r2, lsr #16
 .endm
 
 
@@ -457,8 +458,8 @@ GNU General Public License for more details.
 @ Y Index
 @-------------------------------------------------------------------------
 .macro IndexedY
-    mov r2, SnesY, lsl #16
-    add r0, r0, r2, lsr #16
+    mov     r2, SnesY, lsl #16
+    add     r0, r0, r2, lsr #16
 .endm
 
 
@@ -854,19 +855,16 @@ ADCD_m1:
     tsts    SnesMXDI, #SnesFlagD
     bne     OpADCDCode
 
-    movs    r2, SnesCV, lsl #31
-
-    subcs   r1, r1, #0xff
-    .ifeq mBit-16
-        subcs   r1, r1, #0xff00
-    .endif
-    adds    SnesA, SnesA, r1, lsl #(32-mBit)
+    @ elegant ADC from Snes Advance
+    @
+    movs    r0, SnesCV, lsr #2      @ get carry flag
+    subcs   r1, r1, #(1<<mBit)
+    adcs    SnesA, SnesA, r1, ror #mBit
+    bic     SnesCV, SnesCV, #(SnesFlagC+SnesFlagV)
+    orrcs   SnesCV, SnesCV, #SnesFlagC
+    orrvs   SnesCV, SnesCV, #SnesFlagV
     mov     SnesNZ, SnesA, lsr #16
     
-    bic     SnesCV, SnesCV, #0xF
-    mrs     r0, cpsr
-    orr     SnesCV, SnesCV, r0, lsr #28
-
     AddPC   0, 0
 .endm
 
@@ -1171,19 +1169,41 @@ ADCD_m1:
 .macro OpSBC mode, pcinc, cycles
     \mode
     ReadData
-    
-    movs    r2, SnesCV, lsl #31
-    subcc   r1, r1, #0xff
-    .ifeq mBit-16
-        subcc   r1, r1, #0xff00
+
+    @ elegant SBC from SNES Advance
+    @
+    movs    r0, SnesCV, lsr #2      @ get carry flag
+    sbcs    SnesA, SnesA, r1, lsl #(32-mBit)
+    .ifeq   mBit-16
+        bic     SnesA, SnesA, #0x000000ff
+        bic     SnesA, SnesA, #0x0000ff00
+    .else
+        and     SnesA, SnesA, #0xff000000
     .endif
-    subs    SnesA, SnesA, r1, lsl #(32-mBit)
+    bic     SnesCV, SnesCV, #(SnesFlagV+SnesFlagC)
+    orrcs   SnesCV, SnesCV, #SnesFlagC
+    orrvs   SnesCV, SnesCV, #SnesFlagV
     mov     SnesNZ, SnesA, lsr #16
+/*
+    tsts    SnesCV, #SnesFlagC
+    bic     SnesCV, SnesCV, #(SnesFlagV+SnesFlagC)
+    mov     r0, #0
+    .ifeq mBit-16
+        moveq   r0, #0x00010000
+    .else
+        moveq   r0, #0x01000000
+    .endif
+    
+    subs    SnesA, SnesA, r1, lsl #(32-mBit)
+    orrcs   SnesCV, SnesCV, #SnesFlagC
+    orrvs   SnesCV, SnesCV, #SnesFlagV
 
-    mrs     r0, cpsr
-    bic     SnesCV, SnesCV, #0xF
-    orr     SnesCV, SnesCV, r0, lsr #28
-
+    subs    SnesA, SnesA, r0
+    biccc   SnesCV, SnesCV, #SnesFlagC
+    orrvs   SnesCV, SnesCV, #SnesFlagV
+    
+    mov     SnesNZ, SnesA, lsr #16
+*/    
     AddPC   \pcinc, \cycles
 .endm
 
@@ -1191,8 +1211,9 @@ ADCD_m1:
     \mode
     ReadData
 
+    orr     SnesNZ, SnesNZ, SnesNZ, lsl #1
+    and     SnesNZ, SnesNZ, #0x00010000
     ands    r2, r1, SnesA, lsr #(32-mBit)
-    andeq   SnesNZ, SnesNZ, #0x00ff0000
     orrne   SnesNZ, SnesNZ, #1
     orr     r1, r1, SnesA, lsr #(32-mBit)
     WriteData
@@ -1204,8 +1225,9 @@ ADCD_m1:
     \mode
     ReadData
 
+    orr     SnesNZ, SnesNZ, SnesNZ, lsl #1
+    and     SnesNZ, SnesNZ, #0x00010000
     ands    r2, r1, SnesA, lsr #(32-mBit)
-    andeq   SnesNZ, SnesNZ, #0x00ff0000
     orrne   SnesNZ, SnesNZ, #1
     mvn     r2, SnesA
     and     r1, r1, r2, lsr #(32-mBit)
@@ -1281,9 +1303,6 @@ ADCD_m1:
     \mode
     and     SnesSP, SnesSP, #0x000000ff     @ retain the PBR
     orr     SnesSP, SnesSP, SnesX, ror #16
-    tsts    SnesMXDI, #SnesFlagX
-    movne   SnesNZ, SnesX, lsl #8           @ 8-bit
-    moveq   SnesNZ, SnesX                   @ 16-bit
     AddPC   \pcinc, \cycles
 .endm
 
@@ -1784,6 +1803,8 @@ ADCD_m1:
     ReadDataOperand16
     add     r1, r1, SnesPC
     add     r1, r1, #3              @ add the next PC's address
+    ldr     r0, SnesPCOffset
+    add     r1, r1, r0
     Push16
 
     AddPC   \pcinc, \cycles
@@ -2032,6 +2053,7 @@ ADCD_m1:
 .endm
 
 .macro  OpWAI mode, pcinc, cycles
+    mov     r11, r11
     mov     SnesCYCLES, SnesCYCLES, lsl #20      @ set the cycles to zero to trigger next interrupt
     mov     SnesCYCLES, SnesCYCLES, lsr #20 
 
@@ -2044,6 +2066,14 @@ ADCD_m1:
 .macro  OpSTP mode, pcinc, cycles
     mov     SnesCYCLES, SnesCYCLES, lsl #20      @ set the cycles to zero to trigger next interrupt
     mov     SnesCYCLES, SnesCYCLES, lsr #20 
+
+    @ skip scan line
+    @
+    ldr     r0, regNMI                          @ is the H interrupt set (and V interrupt not set)?
+    mov     r0, r0, lsr #4
+    ldr     r1, =ScanlineSkipTable
+    mov     lr, pc
+    ldr     pc, [r1, r0, lsl #2]
 
     ldrb    r1, [SnesPC, #1]
     and     r0, r1, #0x80                       @ r0 = instruction to branch to
@@ -2063,80 +2093,16 @@ ADCD_m1:
 .macro  OpRES mode, pcinc, cycles
     mov     SnesCYCLES, SnesCYCLES, lsl #20      @ set the cycles to zero to trigger next interrupt
     mov     SnesCYCLES, SnesCYCLES, lsr #20 
-    
-    
-    @ check if the H interrupt is enabled, forward to the next scanline if so
+
+        
+    @ skip scan line
     @
-    ldr     r0, regNMI                          @ is the H interrupt set?
-    tsts    r0, #0x10                           
-    bne     Branch
-    
-    tsts    r0, #0xa0                           @ are both NMI and V interrupt cleared?
-    bne     TestIfNMICleared
-    mov     r1, #-1
-    str     r1, VerticalCount
-    b       Branch
-    
-TestIfNMICleared:
-    tsts    r0, #0x80                           @ is the NMI cleared? that means only V Interrupt is used.
-    beq     TestIfVCleared
- 
-    ldr     r1, VerticalCount       
-    ldr     r2, vBlankScan
-    cmp     r1, r2                          
-    bge     1f                                  @ vertical count > V-time
-    sub     r2, r2, #1
-    str     r2, VerticalCount
-    b       2f
-1:
-    mov     r1, #-1
-    str     r1, VerticalCount
-2:
-    b       Branch
+    ldr     r0, regNMI                          @ is the H interrupt set (and V interrupt not set)?
+    mov     r0, r0, lsr #4
+    ldr     r1, =ScanlineSkipTable
+    mov     lr, pc
+    ldr     pc, [r1, r0, lsl #2]
 
-TestIfVCleared:
-    tsts    r0, #0x20                           @ is the V cleared? that means only NMI Interrupt is used.
-    beq     NMIandV
-
-    ldr     r1, VerticalCount       
-    ldr     r2, regVTime2
-    cmp     r1, r2                          
-    bge     1f                                  @ vertical count > Vblank time
-    sub     r2, r2, #1
-    str     r2, VerticalCount
-    b       2f
-1:
-    mov     r1, #-1
-    str     r1, VerticalCount                   
-2:
-    b       Branch
-    
-NMIandV:
-/*
-    ldr     r0, VerticalCount       
-    ldr     r1, vBlankScan
-    ldr     r2, regVTime2
-    cmp     r2, r1                              @ if r2 (vInt) < r1 (VBlank)
-    ldrlt   r1, regVTime2                       @ then set r1 = VInt time
-    ldrlt   r2, vBlankScan                      @      set r2 = VBlank time
-    
-    cmp     r0, r1                              @ if r0 (current V Count) < r1
-    bge     1f
-    sub     r1, r1, #1                          @ set the new V count = r1 - 1
-    str     r1, VerticalCount
-    b       Branch
-1:
-    cmp     r0, r2                              @ if r0 (current V Count) < r2
-    bge     1f
-    sub     r2, r2, #1                          @ set the new V count = r2 - 1
-    str     r2, VerticalCount
-    b       Branch
-1:
-    mov     r1, #-1                             @ otherwise, set to -1
-    str     r1, VerticalCount
-  */  
-
-Branch:
     ldrb    r1, [SnesPC, #1]
     and     r0, r1, #0xF0                       @ r0 = instruction to branch to
     

@@ -108,9 +108,10 @@ vblankInterrupt:
     mov     r1, #0x1
     strh    r1, [r0]
 
-    ldrb    r1, gbaVBlankFlag
-    cmp     r1, #16
-    addlt   r1, r1, #1
+    @ldrb    r1, gbaVBlankFlag
+    @cmp     r1, #4
+    @addlt   r1, r1, #1
+    mov     r1, #1
     strb    r1, gbaVBlankFlag       @ set the vertical blank for syncing
 
     bx      lr
@@ -247,11 +248,12 @@ R4212:
     ldr     r0, =0x04000004
     ldrh    r0, [r0]
     
+    ldr     r2, vBlankScan
     ldr     r0, VerticalCount
-    cmp     r0, #(-262+225)
+    cmp     r0, r2
     orrge   r1, r1, #0x80
 
-    cmp     SnesCYCLES, #(192 << CYCLE_SHIFT)
+    cmp     SnesCYCLES, #((CYCLES_HBLANK-CYCLES_PER_SCANLINE) << CYCLE_SHIFT)
     orrge   r1, r1, #0x40
 
     bx      lr
@@ -1270,10 +1272,12 @@ oamDirtyBit:
 @-------------------------------------------------------------------------
 W2105:
     ldrb    r2, regBGMode
-    cmp     r2, r1
+    and     r0, r1, #0xf7
+    and     r2, r2, #0xf7
+    strb    r1, regBGMode
+    cmp     r2, r0
     bxeq    lr
 
-    strb    r1, regBGMode
     mov     r0, #1
     strb    r0, regSnesVideoDirty
     bx      lr
@@ -1968,6 +1972,10 @@ W2131:
     .align  4
 regHCounter:    .word   0
 regVCounter:    .word   0
+regPALNTSC:     .byte   0           @ 1 for PAL, 0 for NTSC
+                .byte   0
+                .byte   0
+                .byte   0
     .align  4
     
 @-------------------------------------------------------------------------
@@ -2013,19 +2021,9 @@ R213E:
 @ 0x213F: STAT78 - PPU Status Flag and Version
 @-------------------------------------------------------------------------
 R213F:
-	/*ldr     r0, regVCounter
-    bic     r0, r0, #0x80000000
-	str     r0, regVCounter
-	ldr     r0, regHCounter
-    bic     r0, r0, #0x80000000
-	str     r0, regHCounter*/
-	
-    @ldr    r0,=romflags1
-	@ldr    r0,[r0]
-	@tst    r0,#2			;PAL game?
-	@mov    r1,#0x01		;Version
-	@orrne  r1,r1,#0x10	    ;PAL bit
-    mov     r1, #0
+    mov     r1, #1
+    ldrb    r0, regPALNTSC
+    add     r1, r1, r0, lsl #4
     bx      lr
 
 @=========================================================================
@@ -2122,24 +2120,23 @@ W2143:
 @=========================================================================
 
     .align  4
-regWRAMAddr:    .long   0
+regWRAMAddr:                .long   0
+regWRAMTranslatedAddr:      .long   0
     .align  4
 
 @-------------------------------------------------------------------------
 @ 0x2180
 @-------------------------------------------------------------------------
 W2180:
-    ldr     r0, regWRAMAddr
+    ldr     r0, regWRAMTranslatedAddr
     strb    r1, [r0], #1
-    bic     r0, r0, #0x20000
-    str     r0, regWRAMAddr
+    str     r0, regWRAMTranslatedAddr
     bx      lr
 
 R2180:
-    ldr     r0, regWRAMAddr
+    ldr     r0, regWRAMTranslatedAddr
     ldrb    r1, [r0], #1
-    bic     r0, r0, #0x20000
-    str     r0, regWRAMAddr
+    str     r0, regWRAMTranslatedAddr
     bx      lr
 
 @-------------------------------------------------------------------------
@@ -2147,21 +2144,27 @@ R2180:
 @-------------------------------------------------------------------------
 W2181:
     strb    r1, regWRAMAddr
-    bx      lr
+    b       W218xTranslate
 
 @-------------------------------------------------------------------------
 @ 0x2182  WMADDM - WRAM Address middle byte
 @-------------------------------------------------------------------------
 W2182:
     strb    r1, regWRAMAddr+1
-    bx      lr
-
+    b       W218xTranslate
 
 @-------------------------------------------------------------------------
 @ 0x2183  WMADDH - WRAM Address high byte
 @-------------------------------------------------------------------------
 W2183:
     strb    r1, regWRAMAddr+2
+    
+W218xTranslate:
+    ldr     r0, regWRAMAddr
+    bic     r0, r0, #0x00fe0000
+    bic     r0, r0, #0xff000000
+    add     r0, r0, #0x02000000
+    str     r0, regWRAMTranslatedAddr
     bx      lr
 
 
@@ -2201,7 +2204,9 @@ R4016:
 @ 0x4218 JOY1L - Controller Port 1 Data1 Register low byte
 @-------------------------------------------------------------------------
 R4218:
+R421A:
 R421C:
+R421E:
     ldr     r0, =keypadRead
     ldrb    r1, [r0]
     bx      lr
@@ -2210,7 +2215,9 @@ R421C:
 @ 0x4219 JOY1H - Controller Port 1 Data1 Register high byte
 @-------------------------------------------------------------------------
 R4219:
+R421B:
 R421D:
+R421F:
     ldr     r0, =keypadRead+1
     ldrb    r1, [r0]
 	bx      lr
@@ -2332,7 +2339,7 @@ renderMode1BG2Priority:     .byte   0x02        @ (either 0xff=auto, 0x00, 0x01,
 renderMode1BG3Priority:     .byte   0x00        @ (either 0xff=auto, 0x00, 0x01, 0x02, 0x03)
 .byte 0
 
-bgCurTileOffset:  .word   0x00000000
+bgCurTileOffset:  .word   0x06010000
 
 ScreenMode:       .word   0
 
@@ -2349,441 +2356,6 @@ bg4TileOffset:    .word   0x00000000
 
 NumColors:        .word   0
 
-/*
-.macro  StartRenderer
-    stmfd   sp!, {r3-r9, lr}
-.endm
-
-.macro  EndRenderer
-    ldmfd   sp!, {r3-r9, lr}
-    bx      lr
-.endm
-
-@-------------------------------------------------------------------------
-@ Enable backgrounds according to flags
-@-------------------------------------------------------------------------
-EnableBG:
-    ldr     r2, =0x04000000 
-    ldrh    r0, [r2]
-    ldrb    r1, regMainScreen
-    ldrb    r3, regSubScreen
-    orr     r1, r1, r3
-
-    bic     r0, r0, #0x1f
-    and     r1, r1, #0x1f
-    orr     r0, r0, r1, lsl #8
-    bic     r0, r0, #(1<<11)            @ don't enable BG3
-    strh    r0, [r2]
-    ldr     r4, =0x06010000
-    str     r4, bgCurTileOffset
-    
-    bx      lr
-
-@-------------------------------------------------------------------------
-@ Copy BG CHAR 
-@   r7 = number of colors for bg3, bg2, bg1, bg0
-@        (0 = no background, 1 = 4 color, 2 = 16 color, 3 = 256 color)
-@ destroys r3-r8
-@-------------------------------------------------------------------------
-
-RenderCopyBGChar2:
-    @ set up the VRAM BG and BG color table 
-    mov     r8, #32
-    mov     r2, #0xff
-    mov     r3, #0xff
-    ldr     r4, =VRAMBG
-    ldr     r5, =VRAMBGColors
-    
-RenderCopyBGChar2_Loop:
-    ldrb    r6, [r4]
-    cmp     r6, #0xff
-    movne   r2, r6
-    ldrneb  r3, [r5]
-    strb    r2, [r4], #1
-    strb    r3, [r5], #1
-    subs    r8, r8, #1
-    bne     RenderCopyBGChar2_Loop
-    
-    @ SNES character address
-    mov     r0, #0
-
-RenderCopyBGChar2_Loop2:
-    ldrb    r1, regMainScreen
-    ldrb    r2, regSubScreen
-    orr     r1, r2, r1
-    mov     r2, #1
-    tsts    r1, r2, lsl r0
-    beq     RenderCopyBGChar2_SkipLoop      @ skip if background is not activated in main/sub screen
-
-    ldr     r1, =regBG1NBA
-    ldrb    r1, [r1, r0]
-    and     r1, r1, #0x07                   @ r6 = 00000aaa
-    mov     r6, r1                          @ r6 = 00000aaa
-    mov     r1, r1, lsl #13
-    add     r1, r1, #0x02000000             
-    add     r1, r1, #0x00020000
-
-    and     r5, r7, #0xff
-    ldr     r2, =RenderCopyCharUnpackTable
-    ldr     r2, [r2, r5, lsl #2]
-
-    ldr     r3, =bg1VRAMOffset
-    ldr     r3, [r3, r0, lsl #2]
-    add     r3, r3, r6, lsl #13
-
-    stmfd   sp!, {r0, lr}
-    ldr     r4, =RenderCopyBGCopyCharTable
-    mov     lr, pc
-    ldr     pc, [r4, r5, lsl #2]
-    ldmfd   sp!, {r0, lr}
-
-RenderCopyBGChar2_SkipLoop:
-    add     r0, r0, #1
-    cmp     r0, #4
-    mov     r7, r7, lsr #8
-    bne     RenderCopyBGChar2_Loop2
-    bx      lr
-
-
-.macro CopyBGCharEx  bg1Colors, bg2Colors, bg3Colors, bg4Colors
-    ldr     r7, =((\bg4Colors)*256*256*256 + (\bg3Colors)*256*256 + (\bg2Colors)*256 + (\bg1Colors))
-    bl      RenderCopyBGChar2
-.endm
-
-
-@-------------------------------------------------------------------------
-@ Copy BG TileMap
-@   r0: bgNumber
-@-------------------------------------------------------------------------
-RenderCopyBGTileMap:
-    strb    r0, ScreenMode
-    ldrb    r1, regMainScreen
-    ldrb    r2, regSubScreen
-    orr     r1, r2, r1
-    mov     r2, #1
-    tsts    r1, r2, lsl r0
-    bxeq    lr                              @ skip if background is not activated in main/sub screen
-    
-    cmp     r0, #2                          @ if this is BG3, 
-    moveq   r9, #0x8000                     @ add to the tile map palette
-    movne   r9, #0x0000
-
-    stmfd   sp!, {lr}
-    ldr     r1, =regBG1SC
-    ldrb    r1, [r1, r0]                    @ r1 = 00000000 ttttttyx
-    and     r1, r1, #0x7f                   @ r1 = 00000000 0tttttyx
-    mov     r0, r1, lsr #2                  @ r0 = 00000000 000ttttt
-    and     r7, r1, #0x03                   @ r7 = 00000000 000000yx
-
-    ldr     r5, =VRAMWrite
-    add     r5, r5, r0, lsl #2
-
-    mov     r0, r0, lsl #11                 @ r0 = ttttt000 00000000
-    mov     r6, r0
-
-    ldrb    r1, ScreenMode
-    ldr     r4, =VRAMWriteTileMap
-    str     r4, [r5], #4
-    bl      CopyTileMap
-    tsts    r7, #0x03
-    beq     CopyBGTileMap_End
-
-    ldrb    r1, ScreenMode
-    add     r0, r6, #0x800
-    ldr     r4, =VRAMWriteTileMap
-    str     r4, [r5], #4
-    bl      CopyTileMap
-    cmp     r7, #0x03
-    bne     CopyBGTileMap_End
-
-    ldrb    r1, ScreenMode
-    add     r0, r6, #0x1000
-    ldr     r4, =VRAMWriteTileMap
-    str     r4, [r5], #4
-    bl      CopyTileMap
-
-    ldrb    r1, ScreenMode
-    add     r0, r6, #0x1800
-    ldr     r4, =VRAMWriteTileMap
-    str     r4, [r5], #4
-    bl      CopyTileMap
-
-CopyBGTileMap_End:
-    ldmfd   sp!, {lr}
-    bx      lr
-
-.macro  CopyBGTileMap   bgNumber
-    mov     r0, #\bgNumber
-    bl      RenderCopyBGTileMap
-.endm
-
-    SetText "OBJCHAR"
-@-------------------------------------------------------------------------
-@ Copy OBJ char
-@   r8: nameAddress (0, 1)
-@-------------------------------------------------------------------------
-RenderCopyOBJChar:
-    ldrb    r0, regObSel
-    mov     r1, r0
-    and     r0, r0, #0x07           @ r0 = -----aaa
-    mov     r0, r0, lsl #3          @ r0 = --aaa000
-    
-    tsts    r8, #1
-    andne   r5, r1, #0x18           @ r5 = ---nn---
-    addne   r5, r5, #0x08           @ r5+= 00001000
-    addne   r0, r0, r5, lsr #1      @ r0 = --aa*n00
-    and     r0, r0, #0x1f           @ r0 = --0a*n00
-
-    ldr     r1, =VRAMObjWrite
-    add     r1, r1, r0, lsl #2
-    
-    tsts    r8, #1
-    ldrne   r6, =VRAMWriteObj1Char_16color
-    ldreq   r6, =VRAMWriteObj0Char_16color
-
-    str     r6, [r1], #4
-    str     r6, [r1], #4
-    str     r6, [r1], #4
-    str     r6, [r1], #4
-
-    ldr     r2, =charUnpack4
-    ldr     r1, =0x02020000
-    add     r1, r1, r0, lsl #11
-    
-    ldr     r3, =0x06010000
-    tsts    r8, #1
-    addne   r3, r3, #0x00004000
-
-    sub     r4, r3, r0, lsl #11
-    streq   r4, VRAMObj0Offset
-    strne   r4, VRAMObj1Offset
-
-    stmfd   sp!, {lr}
-    bl      CopyObjChar_16color
-    ldmfd   sp!, {lr}
-    bx      lr
-
-.macro  CopyOBJChar nameAddress
-    mov     r8, #\nameAddress
-    bl      RenderCopyOBJChar
-.endm
-
-.macro  CopyOBJCharEx nameAddress
-    mov     r8, #\nameAddress
-    bl      RenderCopyOBJChar
-.endm
-
-    .ltorg
-
-@-------------------------------------------------------------------------
-@ Copy BG control bits and allocate GBA VRAM for snes background
-@   r0 = bgNumber (0-3)
-@   r2 = priority (0-3)
-@   r6 = numColors (0=na, 1=4, 2=16, 3=256)
-@ destroys r3-r8
-@-------------------------------------------------------------------------
-RenderCopyBGCNT:
-    strb    r6, NumColors
-    ldrb    r1, regMainScreen
-    ldrb    r2, regSubScreen
-    orr     r1, r2, r1
-    mov     r2, #1
-    tsts    r1, r2, lsl r0
-    bxeq    lr                              @ skip if background is not activated in main/sub screen
-
-    ldr     r3, =renderMode1BG1Priority     @ override the default SNES priority
-    ldrb    r3, [r3, r0]
-    cmp     r3, #0xff
-    movne   r2, r3                          @ r2 = 00000000 000000pp
-
-    cmp     r6, #COLOR_256                  
-    orreq   r2, r2, #(1 << 7)
-    orrne   r2, r2, #(0 << 7)               @ r2 = 00000000 c00000pp
-
-    ldr     r1, =regBG1NBA
-    ldrb    r1, [r1, r0]                    @ r1 = 0000aaaa
-    and     r1, r1, #0x07
-    mov     r7, r1                          @ r1, r7 = 00000aaa (stores the SNES VRAM 8k-block)
-
-    @ set up the VRAM write table for the BG char
-    @
-    ldr     r4, =VRAMBGColors
-    strb    r6, [r4, r7, lsl #2]
-    ldr     r4, =VRAMBG
-    strb    r0, [r4, r7, lsl #2]
-    ldr     r4, =VRAMWrite
-    mov     r7, r7, lsl #2
-    mov     r8, #16
-1:  ldr     r6, [r4, r7, lsl #2]
-    ldr     r5, =VRAMWriteNOP
-    cmp     r6, r5
-    ldr     r5, =VRAMWriteBGChar
-    streq   r5, [r4, r7, lsl #2]
-    add     r7, r7, #1
-    cmp     r7, #32
-    bge     2f
-    subs    r8, r8, #1
-    bne     1b
-2:  
-
-    @ determine the 16-k blocks in GBA VRAM for the character maps.
-    @
-    mov     r7, r1
-    ldrb    r5, regBG1NBA
-    ldrb    r6, regBG2NBA
-    cmp     r0, #1                          @ are we doing BG1?
-    moveq   r1, #0                          @ if so, use block #0, temporarily.
-    cmp     r5, r6                          @ but is NBA for BG1 != BG2?
-    movne   r1, #1                          @ if so, use block #1 instead
-    cmp     r0, #0                          @ are we doing BG1?
-    moveq   r1, #0                          @ if so, use block #0
-    cmp     r0, #2                          @ are we doing BG3?
-    moveq   r1, #2                          @ if so, use block #2
-    mov     r5, #0x06000000
-    add     r5, r5, r1, lsl #14             @ r5 = 0x0600?000 (GBA VRAM address for the characters)
-    sub     r5, r5, r7, lsl #13
-    orr     r2, r2, r1, lsl #2              @ r2 = 00000000 c000AApp
-    ldr     r3, =bg1VRAMOffset
-    str     r5, [r3, r0, lsl #2]
-    cmp     r0, #2                          @ are we doing BG3?
-    moveq   r7, r7, lsl #13
-    streq   r7, bg3Base
-
-    @ mosaic
-    @
-    mov     r1, #1
-    mov     r4, r1, lsl r0
-    ldr     r1, =regMOSAIC
-    ldrb    r1, [r1]
-    tsts    r1, r4
-    orrne   r2, r2, #(1 << 6)               @ r2 = 00000000 cm00AApp
-
-    @ SNES tilemap address
-    ldr     r3, =regBG1SC                   @ load tilemap address
-    ldrb    r3, [r3, r0]                    @ r3 = 00000000 ttttttyx
-    orr     r2, r2, r3, lsl #14             @ r2 = yx000000 cm00AApp
-
-    @ allocate tile map in GBA VRAM
-    @ (allocates from the bottom of the VRAM segment to minimize
-    @ chance of overwriting)
-    @
-    and     r5, r3, #0x03                   @ r5 = 00000000 000000yx
-    ldr     r4, bgCurTileOffset
-    cmp     r5, #0
-    moveq   r8, #1
-    cmp     r5, #1
-    moveq   r8, #2
-    cmp     r5, #2
-    moveq   r8, #2
-    cmp     r5, #3
-    moveq   r8, #4
-    sub     r4, r4, r8, lsl #11             @ r4 = 0x0600??00
-    str     r4, bgCurTileOffset
-    and     r6, r4, #0xF800                 @ r6 = 0x0000??00
-    orr     r2, r2, r6, lsr #3              @ r2 = yx0ttttt cm00AApp
-
-    @ set up the VRAMWrite table for tile map
-    @
-    ldr     r6, =VRAMWrite
-    ldr     r5, =VRAMWriteTileMap
-    and     r3, r3, #0x7c                   @ r3 = 00000000 0ttttt00
-    add     r6, r6, r3
-1:  str     r5, [r6], #4
-    subs    r8, r8, #1
-    bne     1b
-    sub     r4, r4, r3, lsl #9
-    ldr     r5, =bg1TileOffset
-    str     r4, [r5, r0, lsl #2]
-    ldr     r4, =VRAMBG
-    strb    r0, [r4, r3, lsr #2]
-    ldr     r4, =VRAMBGColors
-    ldrb    r5, NumColors
-    strb    r5, [r4, r3, lsr #2]
-
-    ldr     r3, =(0x4000008)                @ gba BGxCNT address
-    add     r3, r3, r0, lsl #1
-    strh    r2, [r3]
-    bx      lr    
-
-.macro CopyBGCNT  bgNumber, numColors, priority
-    mov     r0, #\bgNumber
-    mov     r2, #\priority
-    mov     r6, #\numColors
-    bl      RenderCopyBGCNT
-.endm
-
-@-------------------------------------------------------------------------
-@ Mode 0
-@-------------------------------------------------------------------------
-RenderMode0:
-    StartRenderer
-    EndRenderer
-
-@-------------------------------------------------------------------------
-@ Mode 1
-@-------------------------------------------------------------------------
-RenderMode1:
-    StartRenderer
-
-    bl              EnableBG
-
-    CopyBGCNT       0, COLOR_16, 1
-    CopyBGCNT       1, COLOR_16, 1
-    CopyBGCNT       2, COLOR_4, 1
-    CopyBGCharEx    COLOR_16, COLOR_16, COLOR_4, COLOR_NONE
-    CopyOBJChar     1
-    CopyOBJChar     0
-
-    CopyBGTileMap   0
-    CopyBGTileMap   1
-    CopyBGTileMap   2
-
-    EndRenderer
-
-@-------------------------------------------------------------------------
-@ Mode 2
-@-------------------------------------------------------------------------
-RenderMode2:
-    StartRenderer
-    EndRenderer
-
-@-------------------------------------------------------------------------
-@ Mode 3
-@-------------------------------------------------------------------------
-RenderMode3:
-    StartRenderer
-    EndRenderer
-
-@-------------------------------------------------------------------------
-@ Mode 4
-@-------------------------------------------------------------------------
-RenderMode4:
-    StartRenderer
-    EndRenderer
-
-@-------------------------------------------------------------------------
-@ Mode 5
-@-------------------------------------------------------------------------
-RenderMode5:
-    StartRenderer
-    EndRenderer
-
-@-------------------------------------------------------------------------
-@ Mode 6
-@-------------------------------------------------------------------------
-RenderMode6:
-    StartRenderer
-    EndRenderer
-
-@-------------------------------------------------------------------------
-@ Mode 7
-@-------------------------------------------------------------------------
-RenderMode7:
-    StartRenderer
-    EndRenderer
-
-    .ltorg
-*/
 @=========================================================================
 @ Tilemap copy
 @=========================================================================
@@ -2900,8 +2472,8 @@ CopyChar_256Loop:
     CopyChar_1row_256color 5, 16
     CopyChar_1row_256color 6, 16
     CopyChar_1row_256color 7, 16
-    add     r1, r1, #32
-    add     r3, r3, #32
+    add     r1, r1, #64
+    add     r3, r3, #64
     subs    r8, r8, #1
     bne     CopyChar_256Loop
     mov     pc, lr
@@ -3075,8 +2647,8 @@ VRAMWriteBGChar:
     sub     r0, r0, r6
     add     r6, r6, r0, lsl #1
     add     r3, r3, r6
-    
-    ldr     r4, =bgCurTileOffset
+
+    ldr     r4, bgCurTileOffset
     cmp     r3, r4
     bge     VRAMWriteBGCharEnd
 

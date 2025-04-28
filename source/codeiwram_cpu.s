@@ -592,6 +592,7 @@ XCE_m0x0:   XCE_m0x1:   XCE_m1x0:   XCE_m1x1:   OpXCE   NA, 1, 2
 
 SEP_m0x0:   SEP_m0x1:   SEP_m1x0:   SEP_m1x1:   OpSEP   NA, 2, 3
 REP_m0x0:   REP_m0x1:   REP_m1x0:   REP_m1x1:   OpREP   NA, 2, 3
+    .ltorg
 
 
 @-------------------------------------------------------------------------
@@ -672,95 +673,81 @@ NOP_m0x0:   NOP_m0x1:   NOP_m1x0:   NOP_m1x1:   OpNOP   NA, 1, 2
 @=========================================================================
 @ CPU loop
 @=========================================================================
-/*@-------------------------------------------------------------------------
-@ NMI Interrupt handling
-@-------------------------------------------------------------------------
-NMIInterrupt:
-    bl      snesVBlank
-
-    ldr     r0, regNMI
-    tsts    r0, #0x30
-    bne     NMIInterrupt_ToIRQ
-
-NMIInterrupt_ToNMI:
-    ldr     r2, =CYCLES_MAX
-    sub     SnesCYCLES, SnesCYCLES, r2
-    ldr     r0, =NMIInterrupt
-    str     r0, InterruptAddr
-    b       NMIInterrupt_Vsync
-
-NMIInterrupt_ToIRQ:*/
-/*    ldr     r0, regVHCycle                      @ r0 = IRQ_cycle
-    ldr     r1, NMICycle                        @ r1 = NMI_cycle
-
-    subs    r0, r0, r1                          @ r0 = IRQ_cycle - NMI_cycle
-    beq     NMIInterrupt_ToNMI                  @ if( r0==0 ) ignore IRQ
-    ldrmi   r2, =CYCLES_MAX                     @ if( r0<0 ) 
-    addmi   r0, r0, r2                          @   r0 = (IRQ_cycle - NMI_cycle) + CYCLES_MAX
-    sub     SnesCYCLES, SnesCYCLES, r0          @ SnesCYCLES = SnesCYCLES - r0
-    ldr     r1, SnesCycleDelta
-    add     r1, r1, r0                          @ SnesCycleDelta = SnesCycleDelta + r0
-    ldr     r0, =CYCLES_MAX*2
-    cmp     r1, r0
-    subge   r1, r1, r0, lsr #1                  @ SnesCycleDelta = SnesCycleDelta - CYCLES_MAX (if it's too huge)
-    str     r1, SnesCycleDelta
-    ldr     r0, =IRQInterrupt
-    str     r0, InterruptAddr
-*/
-/*
-NMIInterrupt_Vsync:
-    @ v-sync
-    @
-1:  ldrb    r0, gbaVBlankFlag
-    tsts    r0, r0
-    beq     1b
-    sub     r0, r0, #1
-    strb    r0, gbaVBlankFlag
-
-    subs    SnesCYCLES, SnesCYCLES, #0
-    b       Fetch
 
 @-------------------------------------------------------------------------
-@ IRQ Interrupt handling
+@ Code to do fast scanline skip
 @-------------------------------------------------------------------------
-IRQInterrupt:
-    ldr     r1, regNMI
-    tsts    r1, #0x30
-    beq     IRQInterrupt_ToIRQ
-    ExecuteInterrupt    IRQaddress
+ScanlineSkipTable:
+    .word   SkipNoSkip                          @ n=0, v=0, h=0
+    .word   SkipNoSkip                          @ n=0, v=0, h=1
+    .word   SkipToVTime                         @ n=0, v=1, h=0
+    .word   SkipToVTime                         @ n=0, v=1, h=1
+    .word   SkipNoSkip                          @ n=0, v=0, h=0
+    .word   SkipNoSkip                          @ n=0, v=0, h=1
+    .word   SkipToVTime                         @ n=0, v=1, h=0
+    .word   SkipToVTime                         @ n=0, v=1, h=1
+    
+    .word   SkipToVBlank                        @ n=1, v=0, h=0
+    .word   SkipNoSkip                          @ n=1, v=0, h=1
+    .word   SkipToVBlankVTime                   @ n=1, v=1, h=0
+    .word   SkipToVBlankVTime                   @ n=1, v=1, h=1
+    .word   SkipToVBlank                        @ n=1, v=0, h=0
+    .word   SkipNoSkip                          @ n=1, v=0, h=1
+    .word   SkipToVBlankVTime                   @ n=1, v=1, h=0
+    .word   SkipToVBlankVTime                   @ n=1, v=1, h=1
 
+SkipNoSkip:
+    bx      lr
 
+SkipToVBlank:
+    ldr     r1, VerticalCount       
+    ldr     r2, vBlankScan
+    cmp     r1, r2                          
+    bge     1f                                  @ vertical count > V-blank
+    sub     r2, r2, #1
+    str     r2, VerticalCount
+    bx      lr
+1:
+    mov     r1, #-1
+    str     r1, VerticalCount
+    bx      lr
 
-IRQInterrupt_ToIRQ:
-    ldr     r1, regNMI
-    tsts    r1, #0x10
-    beq     IRQInterrupt_ToIRQ
+SkipToVTime:
+    ldr     r1, VerticalCount                   @ ??? may not work if (regVTime2 = -262)
+    ldr     r2, regVTime2
+    cmp     r1, r2                          
+    bge     1f                                  @ vertical count > V-time
+    sub     r2, r2, #1
+    str     r2, VerticalCount
+    bx      lr
+1:
+    mov     r1, #-1
+    str     r1, VerticalCount                   
+    bx      lr
 
-    @b       Fetch
-
-
-IRQInterrupt_ToNMI:
-    ldr     r1, regVHCycle                      @ r0 = IRQ_cycle
-    ldr     r0, NMICycle                        @ r1 = NMI_cycle
-
-    subs    r0, r0, r1                          @ r0 = NMI_cycle - IRQ_cycle
-    ldrmi   r2, =CYCLES_MAX                     @ if( r0<0 ) 
-    addmi   r0, r0, r2                          @   r0 = - (NMI_cycle - IRQ_cycle) + CYCLES_MAX
-    sub     SnesCYCLES, SnesCYCLES, r0          @ SnesCYCLES = SnesCYCLES - r0
-    ldr     r1, SnesCycleDelta
-    add     r1, r1, r0                          @ SnesCycleDelta = SnesCycleDelta + r0
-    ldr     r0, =CYCLES_MAX*2
-    cmp     r1, r0
-    subge   r1, r1, r0, lsr #1                  @ SnesCycleDelta = SnesCycleDelta - CYCLES_MAX (if it's too huge)
-    str     r1, SnesCycleDelta
-    ldr     r0, =NMIInterrupt
-    str     r0, InterruptAddr
-
-    subs    SnesCYCLES, SnesCYCLES, #0
-    b       Fetch
-*/
-
-
+SkipToVBlankVTime:
+    ldr     r0, VerticalCount       
+    ldr     r1, vBlankScan
+    ldr     r2, regVTime2
+    cmp     r2, r1                              @ if r2 (vInt) < r1 (VBlank)
+    ldrlt   r1, regVTime2                       @ then set r1 = VInt time
+    ldrlt   r2, vBlankScan                      @      set r2 = VBlank time
+    
+    cmp     r0, r1                              @ if r0 (current V Count) < r1
+    bge     1f
+    sub     r1, r1, #1                          @ set the new V count = r1 - 1
+    str     r1, VerticalCount
+    bx      lr
+1:
+    cmp     r0, r2                              @ if r0 (current V Count) < r2
+    bge     1f
+    sub     r2, r2, #1                          @ set the new V count = r2 - 1
+    str     r2, VerticalCount
+    bx      lr
+1:
+    mov     r1, #-1                             @ otherwise, set to -1
+    str     r1, VerticalCount
+    bx      lr
 
 /*
 @-------------------------------------------------------------------------
@@ -874,10 +861,11 @@ IRQJumpCode:
 @-------------------------------------------------------------------------
 VerticalCount:  .word   0
 vBlankScan:     .word   SCANLINE_BLANK-262
+hBlankPoint:    .word   
+                .word   0
 
 
     .ltorg
 
 
-    
 
