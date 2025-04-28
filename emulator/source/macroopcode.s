@@ -1,6 +1,6 @@
 /*
 -------------------------------------------------------------------
-Snezziboy v0.21
+Snezziboy v0.22
 
 Copyright (C) 2006 bubble2k
 
@@ -26,9 +26,10 @@ GNU General Public License for more details.
     SnesNZ      .req    r6                  @ $---NNZZZ (15,16 N flag) (idea from SNES Advance)
     SnesSP      .req    r7                  @ $SSSS--PB (stack, shared with PBR)
     SnesPBR     .req    r7                  @ $SSSS--PB (prog bank reg, shared with SP)
-    SnesMXDI    .req    r8                  @ $CCCC-EEF (EE = -e00mxdi flags)
-    SnesCV      .req    r8                  @ $CCCC-EEF (bit 1=carry, bit 0=overflow, we use the GBA flags for this)
-    SnesCYCLES  .req    r8                  @ $CCCC-EEF (CCCCC = CPU cycles (-1364 to 0)?)
+    SnesMXDI    .req    r8                  @ $CCCCWEEF (EE = -e00mxdi flags)
+    SnesCV      .req    r8                  @ $CCCCWEEF (bit 1=carry, bit 0=overflow)
+    SnesCYCLES  .req    r8                  @ $CCCCWEEF (CCCCC = CPU cycles (-1364 to 0)?)
+    SnesWAI     .req    r8                  @ $CCCCWEEF (W bit 0 = in WAI mode)
     SnesPC      .req    r9                  @ $-PPPPPPP (SNES PC translated to the GBA address)
     SnesX       .req    r10                 @ $----XXXX (X register)
     SnesY       .req    r11                 @ $----YYYY (Y register)
@@ -43,7 +44,6 @@ GNU General Public License for more details.
     .equ        NUM_SCANLINES,          262
     .equ        CYCLES_PER_SCANLINE,    227
     .equ        CYCLES_HBLANK,          182
-
 
 
 @-------------------------------------------------------------------------
@@ -63,19 +63,21 @@ GNU General Public License for more details.
 @-------------------------------------------------------------------------
 @ flags (equivalent to the GBA flags)
 @-------------------------------------------------------------------------
-    .equ        SnesFlagC, 0x00000002
-    .equ        SnesFlagV, 0x00000001
-    .equ        SnesFlagN, 0x00018000
-    .equ        SnesFlagNH,0x00010000
-    .equ        SnesFlagNL,0x00008000
-    .equ        SnesFlagZ, 0xFFFFFFFF
-	
-	.equ		SnesFlagE, 0x00000400
-	.equ		SnesFlagM, 0x00000080
-	.equ		SnesFlagX, 0x00000040
-	.equ		SnesFlagD, 0x00000020
-	.equ		SnesFlagI, 0x00000010
+    .equ        SnesFlagC,  0x00000002
+    .equ        SnesFlagV,  0x00000001
+    .equ        SnesFlagWAI,0x00001000
+	.equ		SnesFlagE,  0x00000400
+	.equ		SnesFlagM,  0x00000080
+	.equ		SnesFlagX,  0x00000040
+	.equ		SnesFlagD,  0x00000020
+	.equ		SnesFlagI,  0x00000010
 
+    
+    .equ        SnesFlagN,  0x00018000
+    .equ        SnesFlagNH, 0x00010000
+    .equ        SnesFlagNL, 0x00008000
+    .equ        SnesFlagZ,  0xFFFFFFFF
+	
 
 @-------------------------------------------------------------------------
 @ true SNES program register flags
@@ -466,6 +468,15 @@ GNU General Public License for more details.
 @-------------------------------------------------------------------------
 @ Absolute Addr: $1234
 @   Addr:       LLLLLLLLHHHHHHHH
+@   Effective:  00000000HHHHHHHHLLLLLLLL
+@-------------------------------------------------------------------------
+.macro AbsoluteBankZero
+    ReadAddrOperand16
+.endm
+
+@-------------------------------------------------------------------------
+@ Absolute Addr: $1234
+@   Addr:       LLLLLLLLHHHHHHHH
 @   Effective:  DBRxxxxxHHHHHHHHLLLLLLLL
 @-------------------------------------------------------------------------
 .macro Absolute
@@ -486,10 +497,10 @@ GNU General Public License for more details.
 @-------------------------------------------------------------------------
 @ Absolute Addr: ($1234)
 @   Addr:       LLLLLLLLHHHHHHHH
-@   Effective:  PBRxxxxxIIIIIIIIIIIIIIII = [DBRxxxxxHHHHHHHHLLLLLLLL]
+@   Effective:  PBRxxxxxIIIIIIIIIIIIIIII = [00000000HHHHHHHHLLLLLLLL]
 @-------------------------------------------------------------------------
 .macro AbsoluteIndirectPC
-    AbsolutePC
+    AbsoluteBankZero
     IndirectPBR
 .endm
 
@@ -509,7 +520,7 @@ GNU General Public License for more details.
 @   Effective:  IIIIIIIIIIIIIIIIIIIIIIII = [DBRxxxxxHHHHHHHHLLLLLLLL]
 @-------------------------------------------------------------------------
 .macro AbsoluteIndirectLongPC
-    Absolute
+    AbsoluteBankZero
     IndirectLong
 .endm
 
@@ -527,7 +538,7 @@ GNU General Public License for more details.
 @-------------------------------------------------------------------------
 @ Absolute Indexed X Addr: ($1234,X)
 @   Addr:       LLLLLLLLHHHHHHHH
-@   Effective:  PBRxxxxxIIIIIIIIIIIIIIII = [DBRxxxxxHHHHHHHHLLLLLLLL+XXXXXXXXXXXXXXXX]
+@   Effective:  PBRxxxxxIIIIIIIIIIIIIIII = [PBRxxxxxHHHHHHHHLLLLLLLL+XXXXXXXXXXXXXXXX]
 @-------------------------------------------------------------------------
 .macro AbsoluteIndexedXIndirectPC
     AbsolutePC
@@ -707,61 +718,65 @@ GNU General Public License for more details.
 @ Used by the opcodes to specify addressing mode and translate the 
 @ SNES addresss to a GBA address.
 @=========================================================================
-.macro  Translate addrMode, pcinc=0, cycles=0
+.macro  Translate addrMode, pcinc=0, cycles=0, startExecute=1
     .ifnc \addrMode, None
     .ifnc \addrMode, NonePC
         \addrMode
-        .ifnc \addrMode, Immediate
-        .ifnc \addrMode, AbsolutePC
-        .ifnc \addrMode, AbsoluteLongPC
-        .ifnc \addrMode, AbsoluteIndirectPC
-        .ifnc \addrMode, AbsoluteIndirectLongPC
-        .ifnc \addrMode, AbsoluteIndexedXIndirectPC
-            TranslateAddress    0
-        .endif
-        .endif
-        .endif
-        .endif
-        .endif
-        .endif
-    .endif
-    .endif
-
-    AddPCNoJump   \pcinc, \cycles
-    StartExecute
-.endm
-
-.macro  TranslateMapFast addrMode, pcinc=0, cycles=0
-    .ifnc \addrMode, None
-    .ifnc \addrMode, NonePC
-        \addrMode
-        .ifnc \addrMode, Immediate
-        .ifnc \addrMode, AbsolutePC
-        .ifnc \addrMode, AbsoluteLongPC
-        .ifnc \addrMode, AbsoluteIndirectPC
-        .ifnc \addrMode, AbsoluteIndirectLongPC
-        .ifnc \addrMode, AbsoluteIndexedXIndirectPC
+        .ifc \addrMode, Absolute
             TranslateAddressFromMapCache
         .endif
+        .ifc \addrMode, AbsoluteIndexedX
+            TranslateAddressFromMapCache
         .endif
+        .ifc \addrMode, AbsoluteIndexedY
+            TranslateAddressFromMapCache
         .endif
+        .ifc \addrMode, AbsoluteLong
+            TranslateAddress    0
         .endif
+        .ifc \addrMode, AbsoluteLongIndexedX
+            TranslateAddress    0
         .endif
+        .ifc \addrMode, DP
+            TranslateAddressFromDPCache
+        .endif
+        .ifc \addrMode, DPIndexedX
+            TranslateAddressFromDPCache
+        .endif
+        .ifc \addrMode, DPIndexedY
+            TranslateAddressFromDPCache
+        .endif
+        .ifc \addrMode, DPIndirect
+            TranslateAddress    0
+        .endif
+        .ifc \addrMode, DPIndirectLong
+            TranslateAddress    0
+        .endif
+        .ifc \addrMode, DPIndirectLongIndexedY
+            TranslateAddress    0
+        .endif
+        .ifc \addrMode, DPIndirectIndexedY
+            TranslateAddress    0
+        .endif
+        .ifc \addrMode, DPIndexedXIndirect
+            TranslateAddress    0
+        .endif
+        .ifc \addrMode, StackRelative
+            TranslateAddress    0
+        .endif
+        .ifc \addrMode, StackRelativeIndirectIndexedY
+            TranslateAddress    0
         .endif
     .endif
     .endif
 
     AddPCNoJump   \pcinc, \cycles
-    StartExecute
+    
+    .ifeq \startExecute-1
+        StartExecute
+    .endif
 .endm
 
-.macro  TranslateDPFast addrMode, pcinc=0, cycles=0
-    \addrMode
-    TranslateAddressFromDPCache
-
-    AddPCNoJump   \pcinc, \cycles
-    StartExecute
-.endm
 
 @-------------------------------------------------------------------------
 @ Translate the SNES PC to GBA PC and saves it.
@@ -1468,7 +1483,7 @@ ADCD_m1:
         mov     r7, #0x00ff0000
     .endif
 
-    add     SnesCYCLES, SnesCYCLES, SnesA, lsr #4
+    add     SnesCYCLES, SnesCYCLES, SnesA, lsl #3
 
     bl      OpMVP_Code
 
@@ -1493,7 +1508,7 @@ ADCD_m1:
         mov     r7, #0x00ff0000
     .endif
 
-    add     SnesCYCLES, SnesCYCLES, SnesA, lsr #4
+    add     SnesCYCLES, SnesCYCLES, SnesA, lsl #3
 
     bl      OpMVN_Code
 
@@ -1943,17 +1958,31 @@ ADCD_m1:
 .endm
 
 .macro OpBRL mode, pcinc, cycles
-    ReadDataOperand16    
+    ReadDataOperand16
     mov     r1, r1, lsl #16
     mov     r1, r1, asr #16
-    JumpPC  r1
-    AddPC   \pcinc, \cycles
+    
+    @ safe jump to retain program bank
+    @
+    mov     SnesPC, SnesPC, ror #16
+    add     SnesPC, SnesPC, r1, lsl #16
+    add     SnesPC, SnesPC, #(\pcinc << 16)
+    mov     SnesPC, SnesPC, ror #16
+    
+    AddPC   0, \cycles
 .endm
 
 .macro OpBRA mode, pcinc, cycles
     ldrsb   r1, [SnesPC, #1]
-    add     SnesPC, SnesPC, r1
-    AddPC   \pcinc, \cycles
+    
+    @ safe jump to retain program bank
+    @
+    mov     SnesPC, SnesPC, ror #16
+    add     SnesPC, SnesPC, r1, lsl #16
+    add     SnesPC, SnesPC, #(\pcinc << 16)
+    mov     SnesPC, SnesPC, ror #16
+    
+    AddPC   0, \cycles
 .endm
 
 .macro OpBR bitToTest, set, pcinc, cycles
@@ -2045,7 +2074,8 @@ ADCD_m1:
 
     Pop24
     mov     r0, r1
-    add     r0, r0, #1
+    @ version 0.22 fix
+    @add     r0, r0, #1
     TranslateAndSavePC  1
 
     @bic     SnesIRQ, SnesIRQ, #IRQ_NMI
@@ -2070,20 +2100,26 @@ ADCD_m1:
 @=========================================================================
 .macro OpBRK mode, pcinc, cycles
     mov     r11, r11
+    ExecuteInterrupt    BRKaddress
     AddPC   \pcinc, \cycles
 .endm
 
 .macro OpCOP mode, pcinc, cycles
+    @ added for version 0.22
+    @
+    ExecuteInterrupt    COPaddress
     AddPC   \pcinc, \cycles
 .endm
 
 .macro  OpWAI mode, pcinc, cycles
     mov     SnesCYCLES, SnesCYCLES, lsl #20      @ set the cycles to zero to trigger next interrupt
     mov     SnesCYCLES, SnesCYCLES, lsr #20 
+    
+    orr     SnesWAI, SnesWAI, #SnesFlagWAI
 
     @ force interrupt to occur
     @
-    ldr     r0, regNMI                          
+    ldrb    r0, regNMI                          
     mov     r0, r0, lsr #4
     ldr     r1, =ScanlineSkipTable
     mov     lr, pc
@@ -2099,7 +2135,7 @@ ADCD_m1:
 
     @ skip scan line
     @
-    ldr     r0, regNMI                          
+    ldrb    r0, regNMI                          
     mov     r0, r0, lsr #4
     ldr     r1, =ScanlineSkipTable
     mov     lr, pc
@@ -2127,7 +2163,7 @@ ADCD_m1:
         
     @ skip scan line
     @
-    ldr     r0, regNMI                          @ is the H interrupt set (and V interrupt not set)?
+    ldrb    r0, regNMI                          @ is the H interrupt set (and V interrupt not set)?
     mov     r0, r0, lsr #4
     ldr     r1, =ScanlineSkipTable
     mov     lr, pc
@@ -2147,13 +2183,22 @@ ADCD_m1:
 
 .macro ExecuteInterrupt address, nonMaskable=1
     .ifeq \nonMaskable-0
-        tsts    SnesMXDI, #SnesP_M
+        @ version 0.22 fix
+        tsts    SnesMXDI, #SnesFlagI
         bne     1f
     .endif
 
     and     r1, SnesPBR, #0x000000ff
+    
+    @ version 0.22 fix for WAI
+    @
+    tsts    SnesWAI, #SnesFlagWAI
+    addne   SnesPC, SnesPC, #1
+    bicne   SnesWAI, SnesWAI, #SnesFlagWAI
+    
     Push8
-    sub     SnesPC, SnesPC, #1
+    @ version 0.22 fix
+    @ sub     SnesPC, SnesPC, #1
     ldr     r1, =SnesPCOffset
     ldr     r1, [r1]
     add     r1, SnesPC, r1
@@ -2271,12 +2316,17 @@ ADCD_m1:
 @-------------------------------------------------------------------------
 @ Add PC and end execution, return to fetch
 @-------------------------------------------------------------------------
+.macro OpcodeFetch
+    ldrmib  r0, [SnesPC]                        @ 3 (for WRAM/ROM access)
+    addmi   r0, EmuDecoder, r0, lsl #3          @ 1
+    ldmmiia r0, {lr, pc}                        @ 4 ?
+.endm
+
 .macro FastFetch
     .ifeq   debug-0
         @ do a fast fetch (uses more IWRAM)
-        ldrmib  r0, [SnesPC]                        @ 3 (for WRAM/ROM access)
-        addmi   r0, EmuDecoder, r0, lsl #3          @ 1
-        ldmmiia r0, {lr, pc}                        @ 4 ?
+        @
+        OpcodeFetch
         b       ScanlineEnd
     .else
         @ do a slow fetch with jump to debug routine

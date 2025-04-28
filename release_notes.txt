@@ -1,3 +1,42 @@
+v0.22
+----
+
+Bug Fixes:
+
+- Fixed the JMP ($xxxx) and the JML [$xxxx] instruction to read the indirect addresses from bank zero
+  instead of the current data bank.
+  (Aero fighters now work)
+- Shifted the horizontal offset by 8 pixels to the right so games now look generally centralized
+- Modified the IO for WRAM write at IO addresses $2180-3 to behave as Snes9x
+- Fixed the interrupts to push the correct program counter onto the stack, and the RTI instruction to
+  pop the correct program counter from the stack.
+  (Earthworm Jim now works)
+- Fixed the $213C/D registers to generate the H/V counters correctly.
+  (Zelda-A Link to the Past now works, though in the name entry screen, the name selection still
+  does not move, and in-game text is invisible...)
+- Fixed the COP instruction to fire a COP interrupt
+  (Illusion of Gaia now intros correctly)
+- Fixed the MVP/MVN instruction to increment the cycle counter correctly.
+- Fixed the DMA such that source DMA address is incremented and the DMA size is set to 0,
+  after each DMA channel read/write is complete.
+  (Contra's intro and in-game background tiles display correctly now)
+  (FF2 non-mode 7 backgrounds now displays correctly)
+  (Illusion of Gaia title screens appear)
+- Added rendering for Modes 4 and 5.
+  (Secret of Mana name entry screen requires mode 5, and now appears better. Due to
+  double horizontal resolution though, the text appears but remains unreadable)
+- Added the $2139/A registers to read the VRAM.
+  (Illusion of Gaia seems to works perfectly)
+  (MegamanX, Megaman7 screens get restored after pressing start)
+- Added option for enabling backdrop
+  (With this option set to Yes, Super Mario World backgrounds will not appear black)
+
+Others:
+
+- Provided additional SnezziDebugger.exe that can be used to debug SNES games to search for 
+  speed hacks, SPC patches and other patches.
+
+
 v0.21 
 ----
 

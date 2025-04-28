@@ -1,6 +1,6 @@
 /*
 -------------------------------------------------------------------
-Snezziboy v0.21
+Snezziboy v0.22
 
 Copyright (C) 2006 bubble2k
 
@@ -618,7 +618,7 @@ W420B:
     str     r2, regDMACycles
     mov     r8, #-1
 
-DMA_NextChannel:
+DMA_Setup:
     @ set up the DMA transfer
     @
     ldrb    r1, regDMAEnable
@@ -628,7 +628,7 @@ DMA_NextChannel:
     
     movs    r1, r1, lsr #1
     strb    r1, regDMAEnable
-    bcc     DMA_NextChannel
+    bcc     DMA_Setup
 
     ldr     r0, =regDMAControl
     ldrb    r0, [r0, r8]
@@ -660,12 +660,33 @@ DMA_NextChannel:
     
     ldr     r2, regDMACycles
     add     r2, r2, #(4<<CYCLE_SHIFT)   @ overhead per channel
-    add     r2, r2, r4, lsr #4          @ r2 = stores the cycles used for the DMA transfer
+    add     r2, r2, r4                  @ r2 = stores the cycles used for the DMA transfer
     str     r2, regDMACycles
 
     ldreq   r0, =DMA_WriteJump          @ write
     ldrne   r0, =DMA_ReadJump           @ read
     ldr     pc, [r0, r7, lsl #2]        @ jump to the appropriate DMA transfer mode
+
+    @ version 0.22 fix
+    @ updates the DMA source address
+
+DMA_NextChannel:
+    @ increment the DMA register here
+    @
+    ldr     r5, =regDMASizeL
+    add     r5, r5, r8, lsl #2
+    mov     r6, #0
+    ldrh    r4, [r5]
+    bic     r4, r4, #0x00ff0000         @ r4 = 00000000 00000000 ssssssss ssssssss (DMA transfer size)
+    strh    r6, [r5]
+    
+    ldr     r5, =regDMASourceL
+    add     r5, r5, r8, lsl #2
+    ldrh    r6, [r5]                    
+    add     r6, r6, r4
+    strh    r6, [r5]
+    
+    b       DMA_Setup
 
 DMA_End:
     ldmfd   sp!, {r3-r12, lr}
@@ -879,6 +900,9 @@ regJoyB:	        .hword	0xffff
 regJoyX:	        .hword	0xffff
 regJoyY:	        .hword	0xffff
 
+bgMask:     .byte   0x1f, 0x17, 0x13, 0x13
+            .byte   0x13, 0x13, 0x11, 0x11
+
 .equ	snesJoyA, 0x0080
 .equ	snesJoyB, 0x8000
 .equ	snesJoyX, 0x0040
@@ -941,17 +965,33 @@ renderScreen:
     @---------------------------------
     @ enabled/disable BGs and OBJs
     @---------------------------------
-    ldr     r2, =0x04000000 
-    ldrh    r0, [r2]
     ldrb    r1, regMainScreen
     ldrb    r2, regSubScreen
     orr     r1, r1, r2
-
-    bic     r0, r0, #0x1f00
-    and     r1, r1, #0x1f
-    orr     r0, r0, r1, lsl #8
+    
+    ldr     r2, regBGMode
+    and     r2, r2, #0x7
+    ldr     r0, =bgMask
+    ldrb    r0, [r0, r2]
+    and     r1, r1, r0
+    
     ldr     r2, =0x04000000 
+    ldrh    r0, [r2]
+    bic     r0, r0, #0x1f00
+    orr     r0, r0, r1, lsl #8
     strh    r0, [r2]
+    
+    @---------------------------------
+    @ copy backdrop color
+    @---------------------------------
+    ldr     r0, =configBackdrop
+    ldrb    r0, [r0]
+    cmp     r0, #1
+    bne     1f
+    ldr     r0, regBackDrop
+    ldr     r1, =0x05000000
+    strh    r0, [r1]
+1:
 
     @---------------------------------
     @ copy v offsets
@@ -973,18 +1013,22 @@ renderScreen:
     ldr     r1, =regBG1HOffsetWord
     
     ldrh    r2, [r1, #2]
+    add     r2, r2, #8                  @ do not add 8 for DS
     bic     r2, r2, #0xfe00
     strh    r2, [r0]
 
     ldrh    r2, [r1, #6]
+    add     r2, r2, #8                  @ do not add 8 for DS
     bic     r2, r2, #0xfe00
     strh    r2, [r0, #4]
 
     ldrh    r2, [r1, #10]
+    add     r2, r2, #8                  @ do not add 8 for DS
     bic     r2, r2, #0xfe00
     strh    r2, [r0, #8]
 
     ldrh    r2, [r1, #14]
+    add     r2, r2, #8                  @ do not add 8 for DS
     bic     r2, r2, #0xfe00
     strh    r2, [r0, #12]
 
@@ -1086,7 +1130,6 @@ vblankSkipSpritesAltogether:
     ldrb    r5, regSubScreen
 
     orr     r5, r5, r3, lsl #8
-    orr     r5, r5, #(1<<6)
     ldr     r0, =0x04000050
     strh    r5, [r0]
 
@@ -1109,11 +1152,32 @@ vBlankRenderFrame:
     @---------------------------------
     @ Render Frame
     @---------------------------------
-    ldrb    r1, regSnesVideoDirty
-    tsts    r1, #1
-    bxeq    lr
-    mov     r1, #0
-    strb    r1, regSnesVideoDirty
+    ldr     r0, screenPrev1
+    ldr     r1, screenCurr1
+    cmp     r0, r1
+    bne     vBlankRefreshScreen
+
+    ldr     r0, screenPrev2
+    ldr     r1, screenCurr2
+    cmp     r0, r1
+    bne     vBlankRefreshScreen
+
+    ldr     r0, screenPrev3
+    ldr     r1, screenCurr3
+    cmp     r0, r1
+    bne     vBlankRefreshScreen
+    
+    @ otherwise, don't refresh and return
+    @
+    bx      lr
+
+vBlankRefreshScreen:
+    ldr     r0, screenCurr1
+    str     r0, screenPrev1
+    ldr     r0, screenCurr2
+    str     r0, screenPrev2
+    ldr     r0, screenCurr3
+    str     r0, screenPrev3
 
     ldrb    r0, regBGMode
     and     r0, r0, #0x7
@@ -1128,14 +1192,22 @@ vBlankRenderFrame:
 regOAMAddrInternal: .word   0
 
 regInitDisp:        .byte   0
-regObSel:           .byte   0
+regMOSAIC:          .byte   0
 regOAMAddrLo:       .byte   0
 regOAMAddrHi:       .byte   0
 
+screenPrev1:
+                    .word   0
+screenCurr1:
 regBGMode:          .byte   0xff
-regBGModePrev:      .byte   0
-regMOSAIC:          .byte   0
-regSnesVideoDirty:  .byte   0
+regObSel:           .byte   0
+                    .byte   0
+                    .byte   0
+                    
+regMainScreen:      .byte   0
+regSubScreen:       .byte   0
+                    .byte   0
+                    .byte   0
 
 @-------------------------------------------------------------------------
 @ 0x2100 - INIDISP
@@ -1182,14 +1254,7 @@ R4210:
 @   bbb         = base selection (8k word segment addr)
 @-------------------------------------------------------------------------
 W2101:
-    ldrb    r2, regObSel
-    cmp     r2, r1
-    bxeq    lr
-
     strb    r1, regObSel
-    mov     r0, #1
-    strb    r0, regSnesVideoDirty
-
     bx      lr
 
 @-------------------------------------------------------------------------
@@ -1236,6 +1301,21 @@ W2104:
     strh    r2,regOAMAddrInternal
     bx      lr
 
+@-------------------------------------------------------------------------
+@ 0x2138 - OAM DATA Read
+@-------------------------------------------------------------------------
+R2138:
+    ldrh    r2,regOAMAddrInternal   @ gets the internal OAM address
+    cmp     r2, #544                @ is the OAM address greater than 544 byte addresses?
+    bxge    lr
+
+    ldr     r0, =oamBase            @ write only if the OAM address is within range
+    ldrb    r1, [r0, r2]
+    
+    add     r2, r2, #1
+    strh    r2,regOAMAddrInternal
+    bx      lr
+
 oamBase:
     .rept 544
     .byte   0
@@ -1253,15 +1333,7 @@ oamDirtyBit:
 @   mmm         = BG Mode
 @-------------------------------------------------------------------------
 W2105:
-    ldrb    r2, regBGMode
-    and     r0, r1, #0xf7
-    and     r2, r2, #0xf7
     strb    r1, regBGMode
-    cmp     r2, r0
-    bxeq    lr
-
-    mov     r0, #1
-    strb    r0, regSnesVideoDirty
     bx      lr
 
 @-------------------------------------------------------------------------
@@ -1301,10 +1373,17 @@ regBG3HOffset:      .hword  0
 regBG4HOffsetWord:  .hword  0
 regBG4HOffset:      .hword  0
 
+screenPrev2:
+                    .word   0
+screenCurr2:
 regBG1SC:           .byte   0
 regBG2SC:           .byte   0
 regBG3SC:           .byte   0
 regBG4SC:           .byte   0
+
+screenPrev3:
+                    .word   0
+screenCurr3:
 regBG1NBA:          .byte   0
 regBG2NBA:          .byte   0
 regBG3NBA:          .byte   0
@@ -1322,43 +1401,19 @@ regBG4NBA:          .byte   0
 @-------------------------------------------------------------------------
 
 W2107:
-    ldrb    r2, regBG1SC
-    cmp     r2, r1
-    bxeq    lr
-
     strb    r1, regBG1SC
-    mov     r0, #1
-    strb    r0, regSnesVideoDirty
     bx      lr
 
 W2108:
-    ldrb    r2, regBG2SC
-    cmp     r2, r1
-    bxeq    lr
-
     strb    r1, regBG2SC
-    mov     r0, #1
-    strb    r0, regSnesVideoDirty
     bx      lr
 
 W2109:
-    ldrb    r2, regBG3SC
-    cmp     r2, r1
-    bxeq    lr
-
     strb    r1, regBG3SC
-    mov     r0, #1
-    strb    r0, regSnesVideoDirty
     bx      lr
 
 W210A:
-    ldrb    r2, regBG4SC
-    cmp     r2, r1
-    bxeq    lr
-
     strb    r1, regBG4SC
-    mov     r0, #1
-    strb    r0, regSnesVideoDirty
     bx      lr
 
 @-------------------------------------------------------------------------
@@ -1368,45 +1423,22 @@ W210A:
 @   aaaa = Base address for BG1/3 (Addr>>13)
 @   bbbb = Base address for BG2/4 (Addr>>13)
 @-------------------------------------------------------------------------
-prevW210B:  .byte   0
-prevW210C:  .byte   0
-            .byte   0
-            .byte   0
-
 W210B:
-    ldrb    r0, prevW210B
-    cmp     r0, r1
-    bxeq    lr
-
     and     r0, r1, #0x7
     strb    r0, regBG1NBA
 
     mov     r0, r1, lsr #4
     and     r0, r0, #0x7
     strb    r0, regBG2NBA
-
-    strb    r1, prevW210B
-    
-    mov     r0, #1
-    strb    r0, regSnesVideoDirty
     bx      lr
 
 W210C:
-    ldrb    r0, prevW210C
-    cmp     r0, r1
-    bxeq    lr
-
     and     r0, r1, #0x7
     strb    r0, regBG3NBA
 
     mov     r0, r1, lsr #4
     and     r0, r0, #0x7
     strb    r0, regBG4NBA
-    
-    strb    r1, prevW210C
-    
-    mov     r0, #1
-    strb    r0, regSnesVideoDirty
     bx      lr
 
 
@@ -1577,13 +1609,13 @@ W2115:
     ldreq   r0, [r0]
     ldrne   r0, [r0, #4]
     str     r0, W2118_Inc
-    @str     r2, W2139_Inc
+    str     r0, R2139_Inc
     
     ldr     r0, =W2115_Inc
     ldrne   r0, [r0]
     ldreq   r0, [r0, #4]
     str     r0, W2119_Inc
-    @str     r2, W213a_Inc
+    str     r0, R213A_Inc
 
     @ take care of the increment counter
     @
@@ -1594,24 +1626,11 @@ W2115:
     str     r0, [r2]
     ldr     r2, =W2119_IncCount
     str     r0, [r2]
-    @ldr     r2, =W2139_IncCount
+    ldr     r2, =R2139_IncCount
     str     r0, [r2]
-    @ldr     r2, =W213a_IncCount
+    ldr     r2, =R213A_IncCount
     str     r0, [r2]
-
-    @ take care of the address translation
-    @
-    mov     r1, r1, lsr #2              @ r1 = 00i---mm
-    ands    r1, r1, #0x03               @ r1 = 000000mm
-/*    bne     w2115_ModifyAddrXlate
     
-    ModifyAddrXlateNop  W2118_AddrXlate
-    ModifyAddrXlateNop  W2119_AddrXlate*/
-    bx      lr
-
-w2115_ModifyAddrXlate:
-/*    ModifyAddrXlate     W2118_AddrXlate
-    ModifyAddrXlate     W2119_AddrXlate*/
     bx      lr
 
 W2115_Inc:
@@ -1646,38 +1665,39 @@ W2115_AddrXlateOp:
 @-------------------------------------------------------------------------
 regVRAMAddrLo:      .byte   0
 regVRAMAddrHi:      .byte   0
-                    .byte   0
-                    .byte   0
+                    .byte   0       @ reserved, don't put anything here
+                    .byte   0       @ reserved, don't put anything here
 
 @-------------------------------------------------------------------------
 @ 0x2116  VMADDL - VRAM Address low byte
 @-------------------------------------------------------------------------
 W2116:
     strb    r1, regVRAMAddrLo
-    bx      lr
+    b       W2117_SetupVRAMRead
 
 @-------------------------------------------------------------------------
 @ 0x2116  VMADDH - VRAM Address high byte
 @-------------------------------------------------------------------------
 W2117:
     strb    r1, regVRAMAddrHi
+
+W2117_SetupVRAMRead:
+    @ set up the correct VRAM buffer for reading
+    @
+    ldr     r2, regVRAMAddrLo       
+    bic     r0, r0, #0x8000
+    ldr     r0, =0x02020000
+    ldrh    r0, [r0]
+    strh    r0, vramTemp
+
     bx      lr
-
-/*RecomputeVRAMAddr:
-    ldrh    r1, regVRAMAddrLo
-    bx      lr*/
-
+    
 @-------------------------------------------------------------------------
 @ 0x2118  VMDATAL - VRAM Data Write low byte
 @-------------------------------------------------------------------------
 W2118:
-    ldrh    r0, regVRAMAddrLo
+    ldr     r0, regVRAMAddrLo
     bic     r0, r0, #0x8000
-/*    ldr     r2, =vramTranslation
-W2118_AddrXlate:
-    add     r2, r2, #(1<<17)        @ (self modifying code) (or, mov r0, r0, or mov r2, r2, #(mm<<17))
-    add     r2, r2, r0, lsl #1      @ (self modifying code) (or, mov r0, r0) 
-    ldrh    r0, [r2]                @ (self modifying code) (or, mov r0, r0) */
     ldr     r2, =0x02020000         @ VRAM base (low byte)
     strb    r1, [r2, r0, lsl #1]
 W2118_Inc:
@@ -1685,7 +1705,7 @@ W2118_Inc:
     ldrh    r2, regVRAMAddrLo       
 W2118_IncCount:
     add     r2, r2, #1              @ (self modifying code) (or add r1, r1, #nn)
-    strh    r2, regVRAMAddrLo       
+    str     r2, regVRAMAddrLo       
     
     @ jump to VRAM write table
     mov     r0, r0, lsl #1
@@ -1704,21 +1724,16 @@ W2118_IncCount:
 @ 0x2119  VMDATAH - VRAM Data Write high byte
 @-------------------------------------------------------------------------
 W2119:
-    ldrh    r0, regVRAMAddrLo
+    ldr     r0, regVRAMAddrLo
     bic     r0, r0, #0x8000
-/*    ldr     r2, =vramTranslation       
-W2119_AddrXlate:
-    add     r2, r2, #(1<<17)        @ (self modifying code) (or, mov r0, r0, or mov r2, r2, #(mm<<17))
-    add     r2, r2, r0, lsl #1      @ (self modifying code) (or, mov r0, r0) 
-    ldrh    r0, [r2]                @ (self modifying code) (or, mov r0, r0) */
     ldr     r2, =0x02020001         @ VRAM base (high byte)
     strb    r1, [r2, r0, lsl #1]
 W2119_Inc:
     bx      lr                      @ (self modifying code) (or mov r0, r0)
-    ldrh    r2, regVRAMAddrLo       
+    ldr     r2, regVRAMAddrLo       
 W2119_IncCount:
     add     r2, r2, #1              @ (self modifying code) (or add r1, r1, #nn)
-    strh    r2, regVRAMAddrLo       
+    str     r2, regVRAMAddrLo       
 
     @ jump to VRAM write table
     mov     r0, r0, lsl #1
@@ -1732,6 +1747,49 @@ W2119_IncCount:
     
     ldr     r2, =VRAMObjWrite
     ldr     pc, [r2, r1, lsl #2]
+
+
+@-------------------------------------------------------------------------
+vramTemp:   .hword  0
+            .hword  0
+
+@-------------------------------------------------------------------------
+@ 0x2139  VMDATALREAD - VRAM Data read low byte
+@-------------------------------------------------------------------------
+R2139:
+    ldrb    r1, vramTemp
+R2139_Inc:
+    bx      lr                      @ (self modifying code) (or mov r0, r0)
+    ldr     r2, regVRAMAddrLo       
+    bic     r0, r0, #0x8000
+    ldr     r0, =0x02020000
+    add     r0, r0, r2, lsl #1
+    ldrh    r0, [r0]
+    strh    r0, vramTemp
+R2139_IncCount:
+    add     r2, r2, #1              @ (self modifying code) (or add r1, r1, #nn)
+    str     r2, regVRAMAddrLo       
+    
+    bx      lr
+
+@-------------------------------------------------------------------------
+@ 0x213A  VMDATAHREAD - VRAM Data read high byte
+@-------------------------------------------------------------------------
+R213A:
+    ldrb    r1, vramTemp+1
+R213A_Inc:
+    bx      lr                      @ (self modifying code) (or mov r0, r0)
+    ldr     r2, regVRAMAddrLo       
+    bic     r0, r0, #0x8000
+    ldr     r0, =0x02020000
+    add     r0, r0, r2, lsl #1
+    ldrh    r0, [r0]
+    strh    r0, vramTemp
+R213A_IncCount:
+    add     r2, r2, #1              @ (self modifying code) (or add r1, r1, #nn)
+    str     r2, regVRAMAddrLo       
+    
+    bx      lr
 
 
 @=========================================================================
@@ -1881,10 +1939,18 @@ W2122:
     @ write through to GBA's CGRAM
     tsts    r2, #1
     bxne    lr
-
+    
     sub     r2, r2, #2              @ r2 = 0000000c ccccccc0
     bic     r2, r2, #0xFE00
     
+    tsts    r2, r2                  @ is it zero?
+    bne     1f
+    ldr     r1, =configBackdrop
+    ldrb    r1, [r1]
+    cmp     r1, #1
+    bxeq    lr
+
+1:
     tsts    r2, #0x0100
     add     r1, r2, #0x05000000     @ write BG (16-color) palette
     streqh  r0, [r1]
@@ -1908,10 +1974,10 @@ W2122:
 @=========================================================================
 @ Main/sub screen and color math
 @=========================================================================
-regMainScreen:  .byte   0
-regSubScreen:   .byte   0
-regColorMath:   .byte   0
+regBackDrop:    .byte   0
                 .byte   0
+                .byte   0
+regColorMath:   .byte   0
 
 W212C:
     strb    r1, regMainScreen
@@ -1926,6 +1992,24 @@ W2130:
 
 W2131:
     strb    r1, regColorMath
+    bx      lr
+
+W2132:
+    ldrh    r0, regBackDrop
+    and     r2, r1, #0x1f
+    
+    tsts    r1, #(1<<7)         
+    bicne   r0, r0, #(0x1f << 10)
+    orrne   r0, r0, r2, lsl #10
+    tsts    r1, #(1<<6)         
+    bicne   r0, r0, #(0x1f << 5)
+    orrne   r0, r0, r2, lsl #5
+    tsts    r1, #(1<<5)         
+    bicne   r0, r0, #(0x1f << 0)
+    orrne   r0, r0, r2, lsl #0
+    
+    strh    r0, regBackDrop
+    
     bx      lr
 
 
@@ -1943,9 +2027,15 @@ regPALNTSC:     .byte   0           @ 1 for PAL, 0 for NTSC
 @ 0x2137 - SLHV - Software Latch for H/V Counter
 @-------------------------------------------------------------------------
 R2137:
-    @mov     r0, SnesHC, lsr #16
+    mov     r0, SnesCV, lsr #CYCLE_SHIFT
+    add     r0, r0, #255
+    add     r0, r0, #7
     strh    r0, regHCounter
-    @mov     r0, SnesVC, lsr #16
+    
+    ldr     r0, =VerticalCount
+    ldr     r0, [r0]
+    add     r0, r0, #255
+    add     r0, r0, #7
     strh    r0, regVCounter
     bx      lr
 
@@ -1991,13 +2081,15 @@ R213F:
 @ APU (SPC-700 registers)
 @=========================================================================
 
+    .equ    APUReadMaxCount, 7
+
 regAPU0:            .byte   0
 regAPU1:            .byte   0
-regAPUReadCount:    .byte   0
+regAPUReadCount:    .byte   (APUReadMaxCount-1)
                     .byte   0
 regAPUCounter:      .hword  0
                     .hword  0
-spcReadTable:       .word   spcRead0, spcRead1, spcRead2, spcRead3, spcRead4, spcRead5, spcRead6
+spcReadTable:       .word   spcRead6, spcRead4, spcRead5, spcRead2, spcRead3, spcRead0, spcRead1
 
 @-------------------------------------------------------------------------
 @ 0x2140 APUIO0 - APU I/O register 0
@@ -2011,7 +2103,7 @@ R2142:
 R2143:
 	ldrb    r2, regAPUReadCount
 	subs    r2, r2, #1
-	movmi   r2, #6
+	movmi   r2, #(APUReadMaxCount-1)
 	strb    r2, regAPUReadCount
 
 	ldr     r0, =spcReadTable
@@ -2067,6 +2159,8 @@ spcRead0:
 
 W2140:  
 W2142:
+    @mov     r2, #(APUReadMaxCount-1)
+	@strb    r2, regAPUReadCount
     strb    r1, regAPU0
     bx      lr
 
@@ -2080,21 +2174,22 @@ W2143:
 @=========================================================================
 
 regWRAMAddr:                .long   0
-regWRAMTranslatedAddr:      .long   0
 
 @-------------------------------------------------------------------------
 @ 0x2180
 @-------------------------------------------------------------------------
 W2180:
-    ldr     r0, regWRAMTranslatedAddr
+    ldr     r0, regWRAMAddr
     strb    r1, [r0], #1
-    str     r0, regWRAMTranslatedAddr
+    bic     r0, r0, #0x00fe0000
+    str     r0, regWRAMAddr
     bx      lr
 
 R2180:
-    ldr     r0, regWRAMTranslatedAddr
+    ldr     r0, regWRAMAddr
     ldrb    r1, [r0], #1
-    str     r0, regWRAMTranslatedAddr
+    bic     r0, r0, #0x00fe0000
+    str     r0, regWRAMAddr
     bx      lr
 
 @-------------------------------------------------------------------------
@@ -2115,14 +2210,13 @@ W2182:
 @ 0x2183  WMADDH - WRAM Address high byte
 @-------------------------------------------------------------------------
 W2183:
+    and     r1, r1, #1
     strb    r1, regWRAMAddr+2
     
 W218xTranslate:
     ldr     r0, regWRAMAddr
-    bic     r0, r0, #0x00fe0000
-    bic     r0, r0, #0xff000000
-    add     r0, r0, #0x02000000
-    str     r0, regWRAMTranslatedAddr
+    orr     r0, r0, #0x02000000
+    str     r0, regWRAMAddr
     bx      lr
 
 
@@ -2366,19 +2460,19 @@ copyTileMapLoop:
     orr     r5, r5, r4, lsl #\colorPlane
 .endm
 
-.macro  CopyChar_1row_256color row, numColors
+.macro  CopyChar_1row_256color row
     mov     r5, #0
     mov     r6, #0
-    CopyChar_1row_256plane      0, 0+(\row*2) 
-    CopyChar_1row_256plane      1, 1+(\row*2)
-    CopyChar_1row_256plane      2, 16+(\row*2)
-    CopyChar_1row_256plane      3, 17+(\row*2)
-    CopyChar_1row_256plane      4, 32+(\row*2)
-    CopyChar_1row_256plane      5, 33+(\row*2)
-    CopyChar_1row_256plane      6, 48+(\row*2)
-    CopyChar_1row_256plane      7, 49+(\row*2)
-    str     r5, [r3, #(\row*8)]                     @ write to GBA VRAM
-    str     r6, [r3, #(\row*8+4)]                   @ write to GBA VRAM
+    CopyChar_1row_256plane      0, 0
+    CopyChar_1row_256plane      1, 1
+    CopyChar_1row_256plane      2, 16
+    CopyChar_1row_256plane      3, 17
+    CopyChar_1row_256plane      4, 32
+    CopyChar_1row_256plane      5, 33
+    CopyChar_1row_256plane      6, 48
+    CopyChar_1row_256plane      7, 49
+    str     r5, [r3], #4            @ write to GBA VRAM
+    str     r6, [r3], #4            @ write to GBA VRAM
 .endm
 
 
@@ -2397,15 +2491,15 @@ copyTileMapLoop:
     orr     r5, r5, r4, lsl #\colorPlane
 .endm
 
-.macro  CopyChar_1row_16color row, numColors
+.macro  CopyChar_1row_16color numColors
     mov     r5, #0
-    CopyChar_1row_16plane       0, 0+(\row*2)       @ for 4, 16 colors
-    CopyChar_1row_16plane       1, 1+(\row*2)
+    CopyChar_1row_16plane       0, 0
+    CopyChar_1row_16plane       1, 1
     .ifeq   \numColors-16
-        CopyChar_1row_16plane   2, 16+(\row*2)      @ only for 16 colors
-        CopyChar_1row_16plane   3, 17+(\row*2)
+        CopyChar_1row_16plane   2, 16
+        CopyChar_1row_16plane   3, 17
     .endif
-    str     r5, [r3, #(\row*4)]                     @ write to GBA VRAM
+    str     r5, [r3], #4            @ write to GBA VRAM
 .endm
 
 
@@ -2418,16 +2512,14 @@ copyTileMapLoop:
 CopyChar_256color:
     mov     r8, #1024
 CopyChar_256Loop:
-    CopyChar_1row_256color 0, 16   
-    CopyChar_1row_256color 1, 16 
-    CopyChar_1row_256color 2, 16
-    CopyChar_1row_256color 3, 16
-    CopyChar_1row_256color 4, 16
-    CopyChar_1row_256color 5, 16
-    CopyChar_1row_256color 6, 16
-    CopyChar_1row_256color 7, 16
-    add     r1, r1, #64
-    add     r3, r3, #64
+    mov     r9, #8
+CopyChar_256Loop2:
+    CopyChar_1row_256color 
+    add     r1, r1, #2
+    subs    r9, r9, #1
+    bne     CopyChar_256Loop2
+    
+    add     r1, r1, #48
     subs    r8, r8, #1
     bne     CopyChar_256Loop
     mov     pc, lr
@@ -2441,16 +2533,14 @@ CopyChar_256Loop:
 CopyChar_16color:
     mov     r8, #1024
 CopyChar_16Loop:
-    CopyChar_1row_16color 0, 16   
-    CopyChar_1row_16color 1, 16 
-    CopyChar_1row_16color 2, 16
-    CopyChar_1row_16color 3, 16
-    CopyChar_1row_16color 4, 16
-    CopyChar_1row_16color 5, 16
-    CopyChar_1row_16color 6, 16
-    CopyChar_1row_16color 7, 16
-    add     r1, r1, #32
-    add     r3, r3, #32
+    mov     r9, #8
+CopyChar_16Loop2:
+    CopyChar_1row_16color 16
+    add     r1, r1, #2
+    subs    r9, r9, #1
+    bne     CopyChar_16Loop2
+
+    add     r1, r1, #16
     subs    r8, r8, #1
     bne     CopyChar_16Loop
     mov     pc, lr
@@ -2465,16 +2555,13 @@ CopyChar_16Loop:
 CopyChar_4color:
     mov     r8, #1024
 CopyChar_4Loop:
-    CopyChar_1row_16color 0, 4   
-    CopyChar_1row_16color 1, 4 
-    CopyChar_1row_16color 2, 4
-    CopyChar_1row_16color 3, 4
-    CopyChar_1row_16color 4, 4
-    CopyChar_1row_16color 5, 4
-    CopyChar_1row_16color 6, 4
-    CopyChar_1row_16color 7, 4
-    add     r1, r1, #16
-    add     r3, r3, #32
+    mov     r9, #8
+CopyChar_4Loop2:
+    CopyChar_1row_16color 4
+    add     r1, r1, #2
+    subs    r9, r9, #1
+    bne     CopyChar_4Loop2
+
     subs    r8, r8, #1
     bne     CopyChar_4Loop
     mov     pc, lr
@@ -2492,16 +2579,15 @@ CopyObjChar_16color:
 CopyObjChar_16Loop:
     tsts    r8, #0xF
     addeq   r3, r3, #512
-    CopyChar_1row_16color 0, 16
-    CopyChar_1row_16color 1, 16 
-    CopyChar_1row_16color 2, 16
-    CopyChar_1row_16color 3, 16
-    CopyChar_1row_16color 4, 16
-    CopyChar_1row_16color 5, 16
-    CopyChar_1row_16color 6, 16
-    CopyChar_1row_16color 7, 16
-    add     r1, r1, #32
-    add     r3, r3, #32
+
+    mov     r9, #8
+CopyObjChar_16Loop2:
+    CopyChar_1row_16color 16
+    add     r1, r1, #2
+    subs    r9, r9, #1
+    bne     CopyObjChar_16Loop2
+    
+    add     r1, r1, #16
     subs    r8, r8, #1
     bne     CopyObjChar_16Loop
     mov     pc, lr
@@ -2570,7 +2656,7 @@ VRAMWriteBGChar:
     ldmnefd sp!, {r3}
     bxne    lr
 
-    stmfd   sp!, {r4-r8, lr}
+    stmfd   sp!, {r4-r9, lr}
     mov     r1, r0, lsr #11
     mov     r6, r2
     ldr     r2, =RenderCopyCharUnpackTable      @ r2 = char unpacker table
@@ -2611,7 +2697,7 @@ VRAMWriteBGCharFinal:
     bx      r7
     
 VRAMWriteBGCharEnd:  
-    ldmfd   sp!, {r4-r8, lr}
+    ldmfd   sp!, {r4-r9, lr}
     ldmfd   sp!, {r3}
     bx      lr
 
@@ -2624,7 +2710,7 @@ VRAMWriteObj1Char_16color:
     cmp     r1, #0x1e
     bxne    lr
 
-    stmfd   sp!, {r3-r8, lr}
+    stmfd   sp!, {r3-r9, lr}
     ldr     r3, VRAMObj1Offset
     b       VRAMWriteObj
 
@@ -2633,7 +2719,7 @@ VRAMWriteObj0Char_16color:
     cmp     r1, #0x1e
     bxne    lr
 
-    stmfd   sp!, {r3-r8, lr}
+    stmfd   sp!, {r3-r9, lr}
     ldr     r3, VRAMObj0Offset
 
 VRAMWriteObj:
@@ -2648,7 +2734,7 @@ VRAMWriteObj:
     add     r3, r3, r0
     mov     r8, #1
     bl      CopyObjChar_16Loop
-    ldmfd   sp!, {r3-r8, lr}
+    ldmfd   sp!, {r3-r9, lr}
     bx      lr
 
 VRAMObj0Offset:   .word   0
@@ -2682,5 +2768,83 @@ yOffset:
 @-------------------------------------------------------------------------
 configCursor:
     .word   0
+
+
+@-------------------------------------------------------------------------
+@ For debugging
+@-------------------------------------------------------------------------
+.ifeq   debug-1
+    SetDebugState:
+        ldr     r2, =debugMemoryBase
+        ldr     r2, [r2, #0x7C]             @ r2 = breakpoint
+        mov     r2, r2, lsr #8
+        cmp     r2, #1
+        bne     SetDebugState_TraceAndBreakpoint    
+        
+        subs    SnesCYCLES, SnesCYCLES, #0
+        bx      lr
+
+    SetDebugState_TraceAndBreakpoint:
+        stmfd   sp!, {r3}
+        
+        mov     r1, SnesPC
+        ldr     r3, =SnesPCOffset
+        ldr     r3, [r3]
+        add     r3, r1, r3
+
+        cmp     r2, #0                      @ if not step through?
+        ldreq   pc, =SetDebugState_UpdateState   @ then, update the state
+
+        @ set the CPU state for every 1024 
+        @ instructions executed
+        @
+        ldr     r1, =debugMemoryBase
+        ldrh    r0, [r1, #0x80]
+        add     r0, r0, #1
+        strh    r0, [r1, #0x80]
+        ldr     r1, =0x03ff
+        tsts    r0, r1
+        ldreq   pc, =SetDebugState_UpdateState
+
+    SetDebugState_SkipUpdateState:
+
+        cmp     r2, r3                  @ break point met, step through code
+        bne     SetDebugState_Step
+
+        ldr     r2, =debugMemoryBase
+        mov     r0, #0
+        str     r0, [r2, #0x7C]
+        ldreq   pc, =SetDebugState_UpdateState
+
+    SetDebugState_Step:
+        cmp     r2, #0                  @ always step through code
+        beq     VBAStep
+        
+        ldmfd   sp!, {r3}
+        subs    SnesCYCLES, SnesCYCLES, #0
+        bx      lr
+
+    VBAStep:
+        ldr     r1, =(debugMemoryBase+0x7C)
+        mov     r0, #0
+        strb    r0, [r1]                @ stop execution
+        mov     r0, #0
+        strb    r0, [r1, #1]            @ clear break point
+        strb    r0, [r1, #2]
+        strb    r0, [r1, #3]
+    VBAStepLoop:
+        ldrb    r0, [r1]
+        cmp     r0, #1
+        bne     VBAStepLoop             @ loop around here to simulate code stepping
+        mov     r0, #0
+        strb    r0, [r1]
+    VBARun:
+        ldmfd   sp!, {r3}
+        subs    SnesCYCLES, SnesCYCLES, #0
+        bx      lr
+
+
+    .ltorg
+.endif
 
 

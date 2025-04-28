@@ -1,6 +1,6 @@
 /*
 -------------------------------------------------------------------
-Snezziboy v0.21
+Snezziboy v0.22
 
 Copyright (C) 2006 bubble2k
 
@@ -217,6 +217,7 @@ IOWrite16:
 
     add     pc, lr, #12
 
+
 @-------------------------------------------------------------------
 @ First bank for DP addressing
 @-------------------------------------------------------------------
@@ -241,8 +242,8 @@ MapCache:
 @-------------------------------------------------------------------
 @ Addressing Modes 
 @-------------------------------------------------------------------
-A_34      :  TranslateMapFast Absolute,3,4
-A_36      :  TranslateMapFast Absolute,3,6
+A_34      :  Translate Absolute,3,4
+A_36      :  Translate Absolute,3,6
 
 A_J33     :  Translate AbsolutePC,0,3
 A_J36     :  Translate AbsolutePC,0,6
@@ -257,37 +258,36 @@ AL_J48    :  Translate AbsoluteLongPC,0,8           @ JSL
 
 ALX_45    :  Translate AbsoluteLongIndexedX,4,5
 
-AX_34     :  TranslateMapFast AbsoluteIndexedX,3,4
-AX_35     :  TranslateMapFast AbsoluteIndexedX,3,5
-AX_37     :  TranslateMapFast AbsoluteIndexedX,3,7
+AX_34     :  Translate AbsoluteIndexedX,3,4
+AX_35     :  Translate AbsoluteIndexedX,3,5
+AX_37     :  Translate AbsoluteIndexedX,3,7
 
 AXI_J36   :  Translate AbsoluteIndexedXIndirectPC,0,6
 
-AY_34     :  TranslateMapFast AbsoluteIndexedY,3,4
-AY_35     :  TranslateMapFast AbsoluteIndexedY,3,5
+AY_34     :  Translate AbsoluteIndexedY,3,4
+AY_35     :  Translate AbsoluteIndexedY,3,5
 
-D_23      :  TranslateDPFast DP,2,3
-D_25      :  TranslateDPFast DP,2,5
+D_23      :  Translate DP,2,3
+D_25      :  Translate DP,2,5
+
+DX_24     :  Translate DPIndexedX,2,4
+DX_26     :  Translate DPIndexedX,2,6
+
+DY_24     :  Translate DPIndexedY,2,4
 
 DI_25     :  Translate DPIndirect,2,5
 
 DIL_26    :  Translate DPIndirectLong,2,6
 
-DILY_26   :  Translate DPIndirectLongIndexedY,2,6
-
 DIY_25    :  Translate DPIndirectIndexedY,2,5
 DIY_26    :  Translate DPIndirectIndexedY,2,6
 
-DS_24     :  Translate StackRelative,2,4
-DSIY_27   :  Translate StackRelativeIndirectIndexedY,2,7
-
-DX_24     :  TranslateDPFast DPIndexedX,2,4
-DX_26     :  TranslateDPFast DPIndexedX,2,6
+DILY_26   :  Translate DPIndirectLongIndexedY,2,6
 
 DXI_26    :  Translate DPIndexedXIndirect,2,6
 
-DY_24     :  TranslateDPFast DPIndexedY,2,4
-
+DS_24     :  Translate StackRelative,2,4
+DSIY_27   :  Translate StackRelativeIndirectIndexedY,2,7
 
 IMM_m1    :  
 IMM_x1    :  Translate Immediate,2,2
@@ -657,12 +657,14 @@ SnesPCOffset:       .long   0
 @ Others
 @-------------------------------------------------------------------------
 
-BRK_m0x0:   BRK_m0x1:   BRK_m1x0:   BRK_m1x1:   OpBRK   NA, 2, 0
-COP_m0x0:   COP_m0x1:   COP_m1x0:   COP_m1x1:   OpCOP   NA, 2, 0
+BRK_m0x0:   BRK_m0x1:   BRK_m1x0:   BRK_m1x1:   OpBRK   NA, 0, 0
+COP_m0x0:   COP_m0x1:   COP_m1x0:   COP_m1x1:   OpCOP   NA, 0, 0
 WAI_m0x0:   WAI_m0x1:   WAI_m1x0:   WAI_m1x1:   OpWAI   NA, 0, 0
 
+@-------------------------------------------------------------------------
 @ specially added instructions
-@
+@-------------------------------------------------------------------------
+
 STP_m0x0:   STP_m0x1:   STP_m1x0:   STP_m1x1:   OpSTP   NA, 2, 0
 RES_m0x0:   RES_m0x1:   RES_m1x0:   RES_m1x1:   OpRES   NA, 2, 0
 NOP_m0x0:   NOP_m0x1:   NOP_m1x0:   NOP_m1x1:   OpNOP   NA, 1, 2
@@ -750,9 +752,7 @@ SkipToVBlankVTime:
 
 .macro ScanlineEndFetch
     subs    SnesCYCLES, SnesCYCLES, #(CYCLES_PER_SCANLINE<<CYCLE_SHIFT)
-    ldrmib  r0, [SnesPC]                        @ 3 (for WRAM/ROM access)
-    addmi   r0, EmuDecoder, r0, lsl #3          @ 1
-    ldmmiia r0, {lr, pc}                        @ 4 ?
+    OpcodeFetch
     b       ScanlineEnd
 .endm
 
@@ -767,15 +767,12 @@ Fetch:
 @ Fetch, decode, jump
 @-------------------------------------------------------------------------
     .ifeq   debug-1
-    mov     lr, pc
-    ldr     pc, =SetDebugState
+    bl      SetDebugState
     .endif
 
     @ don't fetch if the SnesCYCLES count has overflowed
     @
-    ldrmib  r0, [SnesPC]                        @ 3 (for WRAM/ROM access)
-    addmi   r0, EmuDecoder, r0, lsl #3          @ 1
-    ldmmiia r0, {lr, pc}                        @ 4 ?
+    OpcodeFetch
 
 ScanlineEnd:
     @ End of one scanline
@@ -801,10 +798,12 @@ ScanlineEnd:
     @---------------------------------
     @ OAM reset
     @---------------------------------
-    ldr     r2, regOAMAddrLo
+    ldr     r0, =regOAMAddrLo
+    ldrh    r2, [r0]
     bic     r2, r2, #0xfe00
     mov     r2, r2, lsl #1
-    str     r2, regOAMAddrInternal
+    ldr     r0, =regOAMAddrInternal
+    strh    r2, [r0]
 
     mov     r2, #0x80
     strb    r2, vblankFlag
@@ -823,7 +822,7 @@ ScanlineEnd:
     ExecuteInterrupt    NMIaddress
 
 IRQJump1:
-    ldr     pc, IRQJumpAddress                  @ self-modifying, (ldr pc,=IRQJumpAddress or NOP)
+    ldr     pc, IRQJumpAddress                  @ self-modifying, (ldr pc,IRQJumpAddress or NOP)
     ScanlineEndFetch
 
 Scanline0:
@@ -839,10 +838,11 @@ Scanline0:
 	bl      snesRenderScreen
 	
 IRQJump2:
-    ldr     pc, IRQJumpAddress                  @ self-modifying, (ldr pc,=IRQJumpAddress or NOP)
+    ldr     pc, IRQJumpAddress                  @ self-modifying, (ldr pc,IRQJumpAddress or NOP)
     ScanlineEndFetch
 
 CheckVIRQ:
+    ldr     r1, VerticalCount
     ldr     r2, regVTime2
     cmp     r1, r2                              @ fire the V-IRQ only if the v-counter matches
     bne     CheckIRQEnd
@@ -859,7 +859,6 @@ IRQJumpCode:
     .word   0,0
 
     .ltorg
-
 
 @-------------------------------------------------------------------------
 @ Miscellaneous

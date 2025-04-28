@@ -2,7 +2,7 @@
 -------------------------------------------------------------------
 Snezziboy Builder 
 */
-#define VERSION_NO  "0.21"
+#define VERSION_NO  "0.22"
 /*
 Copyright (C) 2006 bubble2k
 
@@ -34,7 +34,7 @@ char *iwramend = ".IWRAMEND";
 
 int sramSizeBytes = 1;
 int mapper[16];
-int memorymap[256*8+1];
+int memorymap[256*8+2];
 
 #define NOP(v)   0x00000000
 #define LRAM(v)  ((v) & 0x0000FFFF) | 0x02000000
@@ -99,6 +99,7 @@ void formmemorymap( int loRom, int romSize ) // romSize in bytes
         map( 0xc0, 0xff, HROM,HROM,HROM,HROM,HROM,HROM,HROM,HROM);
     }
     memorymap[256*8] = sramSizeBytes-1;
+    memorymap[256*8+1] = (0x08000000+snesRomPosition);
 }
 
 char filePath[1024];
@@ -274,7 +275,11 @@ int find_buffer( char *buffer, char *s, int bufferSize, int strSize )
 int main( int argc, char **argv )
 {
     printf( "----------------------------------------------------------------\n" );
+#ifdef DEBUG 
+    printf( " Snezziboy Builder v%s (Debug Build)\n", VERSION_NO );
+#else
     printf( " Snezziboy Builder v%s\n", VERSION_NO );
+#endif
     printf( " Copyright (C) 2006 bubble2k\n" );
     printf( " \n" );
     printf( " This program is free software; you can redistribute it and/or \n" );
@@ -284,7 +289,11 @@ int main( int argc, char **argv )
     printf( "----------------------------------------------------------------\n" );
 
     strcpy( filePath, argv[0] );
+#ifdef DEBUG 
+    filePath[strlen(filePath)-11] = 0;
+#else
     filePath[strlen(filePath)-10] = 0;
+#endif
     
     if( argc<2 )
     {
@@ -300,7 +309,11 @@ int main( int argc, char **argv )
         sprintf( outFileName, "%s.gba", argv[argindex] );
 
         char emuFileName[1024];
+#ifdef DEBUG 
+        sprintf( emuFileName, "%ssnezzid.gba", filePath );
+#else
         sprintf( emuFileName, "%ssnezzi.gba", filePath );
+#endif
 
         FILE *fp1 = fopen( emuFileName, "rb" );
         FILE *fp2 = fopen( argv[argindex], "rb" );
@@ -308,7 +321,7 @@ int main( int argc, char **argv )
         
         if( fp1==NULL )
         {
-            printf( "Unable to open %s\n", "snezzi.gba" );
+            printf( "Unable to open %s\n", emuFileName );
             printf( "Press any key...\n" );
             getch();
             return;
@@ -409,7 +422,9 @@ int main( int argc, char **argv )
         int iwramstartfound = find_buffer( emuBuffer, iwramstart, emuSize, 8 );
         int iwramendfound = find_buffer( emuBuffer, iwramend, emuSize, 8 );
 
-        snesRomPosition = emuSize;
+        snesRomPosition = (emuSize/65536) * 65536;
+        if( emuSize%65536!=0 )
+            snesRomPosition += 65536;
 
         printf( "SMEMMAP     : %08X\n", anchorfound );
         printf( "SNES ROM    : %08X\n", snesRomPosition );
